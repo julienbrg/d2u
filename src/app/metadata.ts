@@ -1,25 +1,25 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://genji-app.netlify.app'),
+  metadataBase: new URL('https://d2u.w3hc.org'),
 
-  title: 'Genji',
-  description: 'Next.js + Web3 Modal + Ethers.js + Chakra UI',
+  title: 'D2U',
+  description: 'UI for NestJS-based WebAuthn auth service',
 
-  keywords: ['Web3', 'Next.js', 'Ethereum', 'DApp', 'Blockchain', 'Wallet'],
+  keywords: ['WebAuthn', 'Next.js', 'Web3'],
   authors: [{ name: 'Julien', url: 'https://github.com/julienbrg' }],
 
   openGraph: {
-    title: 'Genji',
-    description: 'Next.js + Web3 Modal + Ethers.js + Chakra UI',
-    url: 'https://genji-app.netlify.app',
-    siteName: 'Genji',
+    title: 'D2U',
+    description: 'UI for NestJS-based WebAuthn auth service',
+    url: 'https://d2u.w3hc.org',
+    siteName: 'D2U',
     images: [
       {
         url: '/huangshan.png',
         width: 1200,
         height: 630,
-        alt: 'Genji Web3 Application',
+        alt: 'UI for NestJS-based WebAuthn auth service',
       },
     ],
     locale: 'en_US',
@@ -28,8 +28,8 @@ export const metadata: Metadata = {
 
   twitter: {
     card: 'summary_large_image',
-    title: 'Genji',
-    description: 'Next.js + Web3 Modal + Ethers.js + Chakra UI',
+    title: 'D2U',
+    description: 'UI for NestJS-based WebAuthn auth service',
     images: ['/huangshan.png'],
     creator: '@julienbrg',
   },

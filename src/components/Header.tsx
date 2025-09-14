@@ -74,12 +74,12 @@ export default function Header() {
           <Flex align="center" gap={3}>
             <Link href="/">
               <Heading as="h3" size="md" textAlign="center">
-                Genji
+                D2U Project
               </Heading>
             </Link>
             <IconButton
               as="a"
-              href="https://github.com/w3hc/genji"
+              href="https://github.com/julienbrg/d2u"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="GitHub"
@@ -139,24 +139,24 @@ export default function Header() {
               size="sm"
             />
             <MenuList minWidth="180px" px={2}>
-              <Link href="/new" color="white">
+              <Link href="/upload" color="white">
                 <MenuItem fontSize="md" px={4} py={3}>
-                  {t.navigation.newPage}
+                  Upload
                 </MenuItem>
               </Link>
-              <Link href="/wallet" color="white">
+              <Link href="/share" color="white">
                 <MenuItem fontSize="md" px={4} py={3}>
-                  {t.navigation.walletGenerator}
+                  Share access
                 </MenuItem>
               </Link>
-              <Link href="/subscribe" color="white">
+              <Link href="/web3" color="white">
                 <MenuItem fontSize="md" px={4} py={3}>
-                  Subscribe
+                  Web3
                 </MenuItem>
               </Link>
-              <Link href="/webauthn" color="white">
+              <Link href="/settings" color="white">
                 <MenuItem fontSize="md" px={4} py={3}>
-                  WebAuthn
+                  Settings
                 </MenuItem>
               </Link>
             </MenuList>

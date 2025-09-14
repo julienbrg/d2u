@@ -52,9 +52,9 @@ createAppKit({
   ],
   defaultNetwork: sepolia,
   metadata: {
-    name: 'Genji',
-    description: 'Next.js + Web3 Modal + Ethers.js + Chakra UI',
-    url: 'https://genji-app.netlify.app',
+    name: 'D2U',
+    description: 'UI for NestJS-based WebAuthn auth service',
+    url: 'https://d2u.w3hc.org',
     icons: ['./favicon.ico'],
   },
 

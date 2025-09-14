@@ -1,6 +1,6 @@
 {
-  "name": "genji",
-  "version": "3.0.0",
+  "name": "d2u",
+  "version": "0.1.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

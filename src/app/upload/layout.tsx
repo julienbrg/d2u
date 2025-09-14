@@ -1,20 +1,20 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'D2U',
-  description: 'UI for NestJS-based WebAuthn auth service',
+  title: 'New Page | Genji',
+  description: 'Unleash your imagination in this new page!',
 
   openGraph: {
-    title: 'D2U',
-    description: 'UI for NestJS-based WebAuthn auth service',
-    url: 'https://d2u.w3hc.org/webauthn',
-    siteName: 'D2U',
+    title: 'New Page | Genji',
+    description: 'Unleash your imagination in this new page!',
+    url: 'https://genji-app.netlify.app/new',
+    siteName: 'Genji',
     images: [
       {
         url: '/huangshan.png',
         width: 1200,
         height: 630,
-        alt: 'UI for NestJS-based WebAuthn auth service',
+        alt: 'Genji Web3 Application - New Page',
       },
     ],
     locale: 'en_US',
@@ -23,8 +23,8 @@ export const metadata: Metadata = {
 
   twitter: {
     card: 'summary_large_image',
-    title: 'D2U',
-    description: 'UI for NestJS-based WebAuthn auth service',
+    title: 'New Page | Genji',
+    description: 'Unleash your imagination in this new page!',
     images: ['/huangshan.png'],
   },
 }
