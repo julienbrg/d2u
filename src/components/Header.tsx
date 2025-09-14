@@ -10,21 +10,34 @@ import {
   MenuList,
   MenuItem,
   IconButton,
+  Text,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  useDisclosure,
+  Input,
+  FormControl,
+  FormLabel,
+  VStack,
 } from '@chakra-ui/react'
-import { useAppKit } from '@reown/appkit/react'
-import { useAppKitAccount, useDisconnect } from '@reown/appkit/react'
 import Link from 'next/link'
 import { HamburgerIcon } from '@chakra-ui/icons'
 import LanguageSelector from './LanguageSelector'
 import { useTranslation } from '@/hooks/useTranslation'
+import { useWebAuthn } from '@/context/WebAuthnContext'
 import { useState, useEffect } from 'react'
 import { FaGithub } from 'react-icons/fa'
 
 export default function Header() {
-  const { open } = useAppKit()
-  const { isConnected, address } = useAppKitAccount()
-  const { disconnect } = useDisconnect()
+  const { isAuthenticated, user, isLoading, login, register, logout } = useWebAuthn()
   const t = useTranslation()
+  const { isOpen, onOpen, onClose } = useDisclosure()
+  const [username, setUsername] = useState('')
+  const [isRegistering, setIsRegistering] = useState(false)
 
   const [scrollPosition, setScrollPosition] = useState(0)
 
@@ -43,127 +56,205 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const handleConnect = () => {
+  const handleLogin = async () => {
+    await login()
+  }
+
+  const handleRegister = async () => {
+    if (!username.trim()) {
+      return
+    }
+
     try {
-      // Explicitly open the Connect view only when button is clicked
-      open({ view: 'Connect' })
+      setIsRegistering(true)
+      await register(username.trim())
+      setUsername('')
+      onClose()
     } catch (error) {
-      console.error('Connection error:', error)
+      console.error('Registration failed:', error)
+    } finally {
+      setIsRegistering(false)
     }
   }
 
-  const handleDisconnect = async () => {
-    try {
-      await disconnect()
-      // Clear any stored connection data to prevent auto-reconnection
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('wagmi.wallet')
-        localStorage.removeItem('wagmi.store')
-        localStorage.removeItem('@w3m/wallet_id')
-        localStorage.removeItem('@w3m/connected_connector')
-      }
-    } catch (error) {
-      console.error('Disconnect error:', error)
-    }
+  const handleLogout = () => {
+    logout()
+  }
+
+  const handleModalClose = () => {
+    setUsername('')
+    onClose()
   }
 
   return (
-    <Box as="header" py={4} position="fixed" w="100%" top={0} zIndex={10}>
-      <Flex justify="space-between" align="center" px={4}>
-        <Box transform={`translateX(-${leftSlideValue}px)`} transition="transform 0.5s ease-in-out">
-          <Flex align="center" gap={3}>
-            <Link href="/">
-              <Heading as="h3" size="md" textAlign="center">
-                Genji
-              </Heading>
-            </Link>
-            <IconButton
-              as="a"
-              href="https://github.com/w3hc/genji"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="GitHub"
-              icon={<GitHubIcon />}
-              variant="ghost"
-              size="sm"
-              color="white"
-              _hover={{ color: 'white', bg: 'transparent' }}
-            />
-          </Flex>
-        </Box>
+    <>
+      <Box as="header" py={4} position="fixed" w="100%" top={0} zIndex={10}>
+        <Flex justify="space-between" align="center" px={4}>
+          <Box
+            transform={`translateX(-${leftSlideValue}px)`}
+            transition="transform 0.5s ease-in-out"
+          >
+            <Flex align="center" gap={3}>
+              <Link href="/">
+                <Heading as="h3" size="md" textAlign="center">
+                  D2U v0.1.0-alpha
+                </Heading>
+              </Link>
+              <IconButton
+                as="a"
+                href="https://github.com/julienbrg/d2u"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="GitHub"
+                icon={<GitHubIcon />}
+                variant="ghost"
+                size="sm"
+                color="white"
+                _hover={{ color: 'white', bg: 'transparent' }}
+              />
+            </Flex>
+          </Box>
 
-        <Flex
-          gap={2}
-          align="center"
-          transform={`translateX(${rightSlideValue}px)`}
-          transition="transform 0.5s ease-in-out"
-        >
-          {!isConnected ? (
+          <Flex
+            gap={2}
+            align="center"
+            transform={`translateX(${rightSlideValue}px)`}
+            transition="transform 0.5s ease-in-out"
+          >
+            {!isAuthenticated ? (
+              <Flex align="center" gap={3}>
+                <Text
+                  fontSize="sm"
+                  color="gray.300"
+                  cursor="pointer"
+                  _hover={{ color: 'white', textDecoration: 'underline' }}
+                  onClick={onOpen}
+                >
+                  Register
+                </Text>
+                <Button
+                  bg="#8c1c84"
+                  color="white"
+                  _hover={{
+                    bg: '#6d1566',
+                  }}
+                  onClick={handleLogin}
+                  isLoading={isLoading}
+                  loadingText="Authenticating..."
+                  size="sm"
+                >
+                  {t.common.login}
+                </Button>
+              </Flex>
+            ) : (
+              <>
+                {/* Show user info when authenticated */}
+                <Box>
+                  <Text fontSize="sm" color="gray.300">
+                    {user?.displayName || user?.username}
+                  </Text>
+                </Box>
+                <Button
+                  bg="#8c1c84"
+                  color="white"
+                  _hover={{
+                    bg: '#6d1566',
+                  }}
+                  onClick={handleLogout}
+                  size="sm"
+                  ml={4}
+                >
+                  {t.common.logout}
+                </Button>
+              </>
+            )}
+            <Menu>
+              <MenuButton
+                as={IconButton}
+                aria-label="Options"
+                icon={<HamburgerIcon />}
+                variant="ghost"
+                size="sm"
+              />
+              <MenuList minWidth="180px" px={2}>
+                <Link href="/upload" color="white">
+                  <MenuItem fontSize="md" px={4} py={3}>
+                    Upload
+                  </MenuItem>
+                </Link>
+                <Link href="/share" color="white">
+                  <MenuItem fontSize="md" px={4} py={3}>
+                    Share access
+                  </MenuItem>
+                </Link>
+                <Link href="/web3" color="white">
+                  <MenuItem fontSize="md" px={4} py={3}>
+                    Sign a message
+                  </MenuItem>
+                </Link>
+                <Link href="/settings" color="white">
+                  <MenuItem fontSize="md" px={4} py={3}>
+                    Settings
+                  </MenuItem>
+                </Link>
+              </MenuList>
+            </Menu>
+            <LanguageSelector />
+          </Flex>
+        </Flex>
+      </Box>
+
+      {/* Registration Modal */}
+      <Modal isOpen={isOpen} onClose={handleModalClose} isCentered>
+        <ModalOverlay bg="blackAlpha.600" />
+        <ModalContent bg="gray.800" color="white">
+          <ModalHeader>Register New Account</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4}>
+              <Text fontSize="sm" color="gray.400" textAlign="center">
+                Create a new account with WebAuthn passkey authentication. An Ethereum wallet will
+                be generated automatically.
+              </Text>
+              <FormControl>
+                <FormLabel>Username</FormLabel>
+                <Input
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  placeholder="Enter your username"
+                  bg="gray.700"
+                  border="1px solid"
+                  borderColor="gray.600"
+                  _hover={{ borderColor: 'gray.500' }}
+                  _focus={{ borderColor: '#8c1c84', boxShadow: '0 0 0 1px #8c1c84' }}
+                  onKeyPress={e => {
+                    if (e.key === 'Enter' && username.trim()) {
+                      handleRegister()
+                    }
+                  }}
+                />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={handleModalClose}>
+              Cancel
+            </Button>
             <Button
               bg="#8c1c84"
               color="white"
-              _hover={{
-                bg: '#6d1566',
-              }}
-              onClick={handleConnect}
-              size="sm"
-              // Add explicit prevention of auto-trigger
-              onMouseEnter={undefined}
-              onFocus={undefined}
+              _hover={{ bg: '#6d1566' }}
+              onClick={handleRegister}
+              isLoading={isRegistering}
+              loadingText="Creating..."
+              isDisabled={!username.trim()}
             >
-              {t.common.login}
+              Create Account
             </Button>
-          ) : (
-            <>
-              <Box transform="scale(0.85)" transformOrigin="right center"></Box>
-              <Button
-                bg="#8c1c84"
-                color="white"
-                _hover={{
-                  bg: '#6d1566',
-                }}
-                onClick={handleDisconnect}
-                size="sm"
-                ml={4}
-              >
-                {t.common.logout}
-              </Button>
-            </>
-          )}
-          <Menu>
-            <MenuButton
-              as={IconButton}
-              aria-label="Options"
-              icon={<HamburgerIcon />}
-              variant="ghost"
-              size="sm"
-            />
-            <MenuList minWidth="180px" px={2}>
-              <Link href="/new" color="white">
-                <MenuItem fontSize="md" px={4} py={3}>
-                  {t.navigation.newPage}
-                </MenuItem>
-              </Link>
-              <Link href="/wallet" color="white">
-                <MenuItem fontSize="md" px={4} py={3}>
-                  {t.navigation.walletGenerator}
-                </MenuItem>
-              </Link>
-              <Link href="/subscribe" color="white">
-                <MenuItem fontSize="md" px={4} py={3}>
-                  Subscribe
-                </MenuItem>
-              </Link>
-              <Link href="/webauthn" color="white">
-                <MenuItem fontSize="md" px={4} py={3}>
-                  WebAuthn
-                </MenuItem>
-              </Link>
-            </MenuList>
-          </Menu>
-          <LanguageSelector />
-        </Flex>
-      </Flex>
-    </Box>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </>
   )
 }

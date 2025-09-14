@@ -5,7 +5,7 @@ import { useWebAuthn } from '@/context/WebAuthnContext'
 import Link from 'next/link'
 import { useTranslation } from '@/hooks/useTranslation'
 
-export default function Home() {
+export default function Share() {
   const { isAuthenticated, user } = useWebAuthn()
   const t = useTranslation()
 
@@ -20,7 +20,6 @@ export default function Home() {
             <Text fontSize="sm" mb={2}>
               User ID: {user?.id}{' '}
             </Text>
-            {/* TODO: `src/app/webauthn/page.tsx`'s Store Files Tab content */}
           </Box>
         ) : (
           <Box bg="whiteAlpha.50" p={6} borderRadius="md" textAlign="center">
