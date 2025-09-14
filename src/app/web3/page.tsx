@@ -5,7 +5,7 @@ import { useWebAuthn } from '@/context/WebAuthnContext'
 import Link from 'next/link'
 import { useTranslation } from '@/hooks/useTranslation'
 
-export default function Uplaod() {
+export default function Web3() {
   const { isAuthenticated, user } = useWebAuthn()
   const t = useTranslation()
 
@@ -20,6 +20,7 @@ export default function Uplaod() {
             <Text fontSize="sm" mb={2}>
               User ID: {user?.id}{' '}
             </Text>
+            {/* TODO: `src/app/webauthn/page.tsx`'s Sign Message Tab content */}
           </Box>
         ) : (
           <Box bg="whiteAlpha.50" p={6} borderRadius="md" textAlign="center">
