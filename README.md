@@ -1,5 +1,7 @@
 # D2U
 
+UI for [NestJS-based WebAuthn auth service API](https://github.com/julienbrg/nestjs-webauthn).
+
 ## Install
 
 ```bash
@@ -41,7 +43,6 @@ pnpm build
 - [Chakra UI v2](https://v2.chakra-ui.com/) - UI component library
 - [Ethers.js v6](https://docs.ethers.org/v6/) - Ethereum library
 - [Reown AppKit](https://reown.com/appkit) - Web3 wallet connection
-- [Stripe API](https://stripe.com/docs/api) - Payment processing
 
 ## Support
 
