@@ -22,15 +22,13 @@ import { useState } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 
 export default function Web3() {
-  const { isAuthenticated, user } = useWebAuthn()
+  const { isAuthenticated, user, signMessage } = useWebAuthn()
   const t = useTranslation()
   const toast = useToast()
 
   const [message, setMessage] = useState('')
   const [signature, setSignature] = useState('')
   const [isSigningMessage, setIsSigningMessage] = useState(false)
-
-  const API_BASE_URL = process.env.NEXT_PUBLIC_WEBAUTHN_API_URL
 
   const handleSignMessage = async () => {
     if (!message.trim()) {
@@ -47,52 +45,26 @@ export default function Web3() {
     try {
       setIsSigningMessage(true)
       console.log('=== Starting Message Signing ===')
-      console.log('User ID:', user?.id)
       console.log('Message to sign:', message)
 
-      const response = await fetch(`${API_BASE_URL}/web3/sign-message`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ethereumAddress: user?.id,
-          message: message.trim(),
-        }),
-      })
+      // Use the signMessage method from WebAuthn context
+      const messageSignature = await signMessage(message.trim())
 
-      console.log('Sign message response status:', response.status)
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Message signing failed: ${response.status} - ${errorText}`)
-      }
-
-      const result = await response.json()
-      console.log('Sign message result:', result)
-
-      if (result.success && result.data?.signature) {
-        setSignature(result.data.signature)
+      if (messageSignature) {
+        console.log('Message signed successfully:', messageSignature)
+        setSignature(messageSignature)
 
         toast({
           title: 'Message Signed Successfully',
-          description: 'Your message has been cryptographically signed',
+          description: 'Your message has been cryptographically signed with fresh authentication',
           status: 'success',
           duration: 5000,
           isClosable: true,
         })
-      } else {
-        throw new Error(result.message || 'Failed to sign message')
       }
     } catch (error: any) {
       console.error('Message signing failed:', error)
-      toast({
-        title: 'Signing Failed',
-        description: error.message || 'Failed to sign message',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      })
+      // Error handling is done in the signMessage method
     } finally {
       setIsSigningMessage(false)
     }
@@ -112,6 +84,19 @@ export default function Web3() {
       duration: 2000,
       isClosable: true,
     })
+  }
+
+  const copyAddress = () => {
+    if (user?.ethereumAddress) {
+      navigator.clipboard.writeText(user.ethereumAddress)
+      toast({
+        title: 'Copied',
+        description: 'Ethereum address copied to clipboard',
+        status: 'info',
+        duration: 2000,
+        isClosable: true,
+      })
+    }
   }
 
   if (!isAuthenticated) {
@@ -139,14 +124,32 @@ export default function Web3() {
             Sign Message
           </Heading>
           <Text color="gray.400" mb={6}>
-            Cryptographically sign a message with your Ethereum wallet
+            Cryptographically sign a message with your client-side encrypted Ethereum wallet
           </Text>
         </Box>
 
         <VStack spacing={6} align="stretch">
-          <Text fontSize="sm" color="gray.400">
-            Logged in as: <strong>{user?.displayName || user?.username}</strong> (ID: {user?.id})
-          </Text>
+          <Box bg="gray.800" p={4} borderRadius="md">
+            <Text fontSize="sm" color="gray.400" mb={2}>
+              Logged in as: <strong>{user?.displayName || user?.username}</strong>
+            </Text>
+            <Text fontSize="xs" color="gray.500" mb={2}>
+              Ethereum Address:
+              <Code
+                fontSize="xs"
+                ml={2}
+                cursor="pointer"
+                onClick={copyAddress}
+                _hover={{ bg: 'gray.600' }}
+                title="Click to copy"
+              >
+                {user?.ethereumAddress}
+              </Code>
+            </Text>
+            <Text fontSize="xs" color="blue.300">
+              🔒 Your private key is encrypted client-side and never sent to the server
+            </Text>
+          </Box>
 
           <Divider />
 
@@ -176,7 +179,7 @@ export default function Web3() {
             isDisabled={!message.trim()}
             size="lg"
           >
-            Sign Message
+            Sign Message Client-Side
           </Button>
 
           {signature && (
@@ -227,14 +230,15 @@ export default function Web3() {
 
         <Box bg="gray.800" p={4} borderRadius="md">
           <Text fontSize="sm" color="gray.400" mb={2}>
-            <strong>About Message Signing:</strong>
+            <strong>About Client-Side Message Signing:</strong>
           </Text>
           <Text fontSize="xs" color="gray.500" mb={3}>
-            Message signing creates a cryptographic proof that you control the Ethereum wallet
-            associated with your account. This signature can be verified by anyone to prove message
-            authenticity.
+            Your Ethereum wallet is generated and encrypted entirely on your device using your
+            WebAuthn passkey. The private key never leaves your browser and is encrypted with keys
+            derived from your biometric authentication. Message signing happens locally in your
+            browser for maximum security.
           </Text>
-          <Text fontSize="xs" color="gray.500">
+          <Text fontSize="xs" color="gray.500" mb={3}>
             You can verify signatures on{' '}
             <Text
               as="a"
@@ -247,7 +251,12 @@ export default function Web3() {
             >
               Etherscan&apos;s Verify Signature tool
             </Text>{' '}
-            (click on &quot;Verify Signature&quot;).
+            using your Ethereum address and the signature above.
+          </Text>
+          <Text fontSize="xs" color="yellow.300">
+            🔐 Security Note: Your wallet is protected by both your device's biometric security and
+            strong encryption. If you lose access to your device or passkey, your wallet cannot be
+            recovered.
           </Text>
         </Box>
       </VStack>
