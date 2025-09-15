@@ -1,20 +1,20 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'New Page | Genji',
-  description: 'Unleash your imagination in this new page!',
+  title: 'Sign Message | D2U',
+  description: 'Cryptographically sign messages with your Ethereum wallet',
 
   openGraph: {
-    title: 'New Page | Genji',
-    description: 'Unleash your imagination in this new page!',
-    url: 'https://genji-app.netlify.app/new',
-    siteName: 'Genji',
+    title: 'Sign Message | D2U',
+    description: 'Cryptographically sign messages with your Ethereum wallet',
+    url: 'https://d2u.w3hc.org/web3',
+    siteName: 'D2U',
     images: [
       {
         url: '/huangshan.png',
         width: 1200,
         height: 630,
-        alt: 'Genji Web3 Application - New Page',
+        alt: 'D2U - Sign Message with WebAuthn and Ethereum',
       },
     ],
     locale: 'en_US',
@@ -23,12 +23,13 @@ export const metadata: Metadata = {
 
   twitter: {
     card: 'summary_large_image',
-    title: 'New Page | Genji',
-    description: 'Unleash your imagination in this new page!',
+    title: 'Sign Message | D2U',
+    description: 'Cryptographically sign messages with your Ethereum wallet',
     images: ['/huangshan.png'],
+    creator: '@julienbrg',
   },
 }
 
-export default function NewLayout({ children }: { children: React.ReactNode }) {
+export default function Web3Layout({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
