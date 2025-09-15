@@ -245,9 +245,9 @@ export default function Web3() {
               textDecoration="underline"
               _hover={{ color: 'blue.200' }}
             >
-              Etherscan's Verify Signature tool
+              Etherscan&apos;s Verify Signature tool
             </Text>{' '}
-            (click on "Verify Signature").
+            (click on &quot;Verify Signature&quot;).
           </Text>
         </Box>
       </VStack>

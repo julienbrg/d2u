@@ -15,7 +15,7 @@ export default function Home() {
         {isAuthenticated ? (
           <Box>
             <Text fontSize="lg" mb={2}>
-              You're logged in as <strong>{user?.displayName || user?.username}</strong>!
+              You&apos;re logged in as <strong>{user?.displayName || user?.username}</strong>!
             </Text>
             <Text fontSize="sm" mb={2}>
               User ID: {user?.id}{' '}
