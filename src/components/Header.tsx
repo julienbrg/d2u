@@ -97,10 +97,10 @@ export default function Header() {
             <Flex align="center" gap={3}>
               <Link href="/">
                 <Heading as="h3" size="md" textAlign="center">
-                  D2U v0.1.0-alpha
+                  D2U
                 </Heading>
               </Link>
-              <IconButton
+              {/* <IconButton
                 as="a"
                 href="https://github.com/julienbrg/d2u"
                 target="_blank"
@@ -111,7 +111,7 @@ export default function Header() {
                 size="sm"
                 color="white"
                 _hover={{ color: 'white', bg: 'transparent' }}
-              />
+              /> */}
             </Flex>
           </Box>
 
