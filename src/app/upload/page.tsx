@@ -44,6 +44,7 @@ import { useWebAuthn } from '@/context/WebAuthnContext'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { FiDownload, FiTrash2, FiRefreshCw, FiMoreVertical, FiUpload } from 'react-icons/fi'
+import { startAuthentication } from '@simplewebauthn/browser'
 
 interface FileInfo {
   filename: string
@@ -76,6 +77,9 @@ export default function Upload() {
   // Modal state for confirmation
   const { isOpen, onOpen, onClose } = useDisclosure()
   const [fileToDelete, setFileToDelete] = useState<string | null>(null)
+
+  // Authentication state
+  const [isAuthenticating, setIsAuthenticating] = useState(false)
 
   const API_BASE = process.env.NEXT_PUBLIC_WEBAUTHN_API_URL
 
@@ -113,6 +117,68 @@ export default function Upload() {
     }
   }, [isAuthenticated, user, loadUserFiles])
 
+  // WebAuthn authentication function
+  const authenticateWithPasskey = async (): Promise<boolean> => {
+    try {
+      setIsAuthenticating(true)
+
+      // Step 1: Begin authentication
+      const beginResponse = await fetch(`${API_BASE}/webauthn/authenticate/usernameless/begin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!beginResponse.ok) {
+        throw new Error('Failed to begin authentication')
+      }
+
+      const beginResult = await beginResponse.json()
+      let webauthnOptions
+      if (beginResult.success && beginResult.data?.options) {
+        webauthnOptions = beginResult.data.options
+      } else if (beginResult.challenge) {
+        webauthnOptions = beginResult
+      } else {
+        throw new Error('Invalid authentication options received')
+      }
+
+      // Step 2: Complete WebAuthn authentication
+      const credential = await startAuthentication(webauthnOptions)
+
+      const completeResponse = await fetch(
+        `${API_BASE}/webauthn/authenticate/usernameless/complete`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ response: credential }),
+        }
+      )
+
+      if (!completeResponse.ok) {
+        throw new Error('Authentication verification failed')
+      }
+
+      const completeResult = await completeResponse.json()
+      if (!completeResult.success) {
+        throw new Error('Authentication failed')
+      }
+
+      return true
+    } catch (error: any) {
+      console.error('Authentication failed:', error)
+      toast({
+        title: 'Authentication Failed',
+        description: error.message || 'Failed to authenticate with passkey',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      })
+      return false
+    } finally {
+      setIsAuthenticating(false)
+    }
+  }
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
@@ -122,6 +188,10 @@ export default function Upload() {
 
   const uploadFile = async () => {
     if (!selectedFile || !user) return
+
+    // Require authentication before upload
+    const isAuthenticated = await authenticateWithPasskey()
+    if (!isAuthenticated) return
 
     try {
       setIsLoading(true)
@@ -180,6 +250,10 @@ export default function Upload() {
   const downloadFile = async (filename: string, originalName: string) => {
     if (!user) return
 
+    // Require authentication before download
+    const isAuthenticated = await authenticateWithPasskey()
+    if (!isAuthenticated) return
+
     try {
       const response = await fetch(`${API_BASE}/store/download/${user.ethereumAddress}/${filename}`)
 
@@ -218,6 +292,10 @@ export default function Upload() {
 
   const deleteFile = async (filename: string) => {
     if (!user) return
+
+    // Require authentication before delete
+    const isAuthenticated = await authenticateWithPasskey()
+    if (!isAuthenticated) return
 
     try {
       const response = await fetch(`${API_BASE}/store/file/${user.ethereumAddress}/${filename}`, {
@@ -317,6 +395,9 @@ export default function Upload() {
               {stats.fileCount} files • {formatFileSize(stats.totalSize)} total
             </Text>
           )}
+          <Text fontSize="xs" color="yellow.300" mt={2}>
+            Passkey authentication required for upload, download, and delete operations
+          </Text>
         </Box>
 
         <Divider />
@@ -380,8 +461,8 @@ export default function Upload() {
               color="white"
               _hover={{ bg: '#6d1566' }}
               onClick={uploadFile}
-              isLoading={isLoading}
-              loadingText="Uploading..."
+              isLoading={isLoading || isAuthenticating}
+              loadingText={isAuthenticating ? 'Authenticating...' : 'Uploading...'}
               isDisabled={!selectedFile}
               size="lg"
             >
@@ -455,11 +536,13 @@ export default function Upload() {
                               icon={<FiMoreVertical />}
                               variant="ghost"
                               size="sm"
+                              isDisabled={isAuthenticating}
                             />
                             <MenuList>
                               <MenuItem
                                 icon={<FiDownload />}
                                 onClick={() => downloadFile(file.filename, file.originalName)}
+                                isDisabled={isAuthenticating}
                               >
                                 Download
                               </MenuItem>
@@ -467,6 +550,7 @@ export default function Upload() {
                                 icon={<FiTrash2 />}
                                 color="red.300"
                                 onClick={() => confirmDelete(file.filename)}
+                                isDisabled={isAuthenticating}
                               >
                                 Delete
                               </MenuItem>
@@ -506,11 +590,13 @@ export default function Upload() {
                           icon={<FiMoreVertical />}
                           variant="ghost"
                           size="sm"
+                          isDisabled={isAuthenticating}
                         />
                         <MenuList>
                           <MenuItem
                             icon={<FiDownload />}
                             onClick={() => downloadFile(file.filename, file.originalName)}
+                            isDisabled={isAuthenticating}
                           >
                             Download
                           </MenuItem>
@@ -518,6 +604,7 @@ export default function Upload() {
                             icon={<FiTrash2 />}
                             color="red.300"
                             onClick={() => confirmDelete(file.filename)}
+                            isDisabled={isAuthenticating}
                           >
                             Delete
                           </MenuItem>
@@ -541,8 +628,8 @@ export default function Upload() {
             Only you can access, download, or delete your files.
           </Text>
           <Text fontSize="xs" color="yellow.300">
-            Security Note: Files are stored on the server and protected by your WebAuthn
-            authentication. Make sure to keep backups of important files.
+            Security Note: All file operations (upload, download, delete) require fresh passkey
+            authentication for maximum security.
           </Text>
         </Box>
       </VStack>
@@ -555,6 +642,9 @@ export default function Upload() {
           <ModalCloseButton />
           <ModalBody>
             <Text>Are you sure you want to delete this file? This action cannot be undone.</Text>
+            <Text fontSize="sm" color="yellow.300" mt={2}>
+              You will need to authenticate with your passkey to confirm deletion.
+            </Text>
           </ModalBody>
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={onClose}>
