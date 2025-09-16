@@ -41,7 +41,7 @@ import {
   Spacer,
 } from '@chakra-ui/react'
 import { useWebAuthn } from '@/context/WebAuthnContext'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { FiDownload, FiTrash2, FiRefreshCw, FiMoreVertical, FiUpload } from 'react-icons/fi'
 
@@ -79,13 +79,7 @@ export default function Upload() {
 
   const API_BASE = process.env.NEXT_PUBLIC_WEBAUTHN_API_URL
 
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      loadUserFiles()
-    }
-  }, [isAuthenticated, user])
-
-  const loadUserFiles = async () => {
+  const loadUserFiles = useCallback(async () => {
     if (!user) return
 
     try {
@@ -111,7 +105,13 @@ export default function Upload() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [user, toast, API_BASE])
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      loadUserFiles()
+    }
+  }, [isAuthenticated, user, loadUserFiles])
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -297,10 +297,10 @@ export default function Upload() {
       <VStack spacing={8} align="stretch">
         <Box textAlign="center">
           <Heading as="h1" size="lg" mb={4}>
-            Your files
+            Upload & Manage Files
           </Heading>
           <Text color="gray.400" mb={6}>
-            Upload and manage your files
+            Securely upload and manage your files with WebAuthn authentication
           </Text>
         </Box>
 
