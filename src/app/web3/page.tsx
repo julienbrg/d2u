@@ -254,9 +254,9 @@ export default function Web3() {
             using your Ethereum address and the signature above.
           </Text>
           <Text fontSize="xs" color="yellow.300">
-            🔐 Security Note: Your wallet is protected by both your device's biometric security and
-            strong encryption. If you lose access to your device or passkey, your wallet cannot be
-            recovered.
+            🔐 Security Note: Your wallet is protected by both your device&apos;s biometric security
+            and strong encryption. If you lose access to your device or passkey, your wallet cannot
+            be recovered.
           </Text>
         </Box>
       </VStack>

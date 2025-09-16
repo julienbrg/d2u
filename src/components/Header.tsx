@@ -179,24 +179,38 @@ export default function Header() {
               <MenuList minWidth="180px" px={2}>
                 <Link href="/upload" color="white">
                   <MenuItem fontSize="md" px={4} py={3}>
-                    Upload
+                    Upload files
                   </MenuItem>
                 </Link>
-                <Link href="/share" color="white">
-                  <MenuItem fontSize="md" px={4} py={3}>
-                    Share access
-                  </MenuItem>
-                </Link>
+
                 <Link href="/web3" color="white">
                   <MenuItem fontSize="md" px={4} py={3}>
                     Sign a message
                   </MenuItem>
                 </Link>
-                <Link href="/settings" color="white">
-                  <MenuItem fontSize="md" px={4} py={3}>
-                    Settings
-                  </MenuItem>
-                </Link>
+
+                {/* Disabled menu items */}
+                <MenuItem
+                  fontSize="md"
+                  px={4}
+                  py={3}
+                  isDisabled
+                  color="gray.500"
+                  cursor="not-allowed"
+                >
+                  Share access
+                </MenuItem>
+
+                <MenuItem
+                  fontSize="md"
+                  px={4}
+                  py={3}
+                  isDisabled
+                  color="gray.500"
+                  cursor="not-allowed"
+                >
+                  Settings
+                </MenuItem>
               </MenuList>
             </Menu>
             <LanguageSelector />
