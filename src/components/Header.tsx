@@ -100,18 +100,6 @@ export default function Header() {
                   D2U
                 </Heading>
               </Link>
-              {/* <IconButton
-                as="a"
-                href="https://github.com/julienbrg/d2u"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="GitHub"
-                icon={<GitHubIcon />}
-                variant="ghost"
-                size="sm"
-                color="white"
-                _hover={{ color: 'white', bg: 'transparent' }}
-              /> */}
             </Flex>
           </Box>
 
@@ -148,7 +136,6 @@ export default function Header() {
               </Flex>
             ) : (
               <>
-                {/* Show user info when authenticated */}
                 <Box>
                   <Text fontSize="sm" color="gray.300">
                     {user?.displayName || user?.username}
@@ -182,35 +169,11 @@ export default function Header() {
                     Upload files
                   </MenuItem>
                 </Link>
-
                 <Link href="/web3" color="white">
                   <MenuItem fontSize="md" px={4} py={3}>
                     Sign a message
                   </MenuItem>
                 </Link>
-
-                {/* Disabled menu items */}
-                <MenuItem
-                  fontSize="md"
-                  px={4}
-                  py={3}
-                  isDisabled
-                  color="gray.500"
-                  cursor="not-allowed"
-                >
-                  Share access
-                </MenuItem>
-
-                <MenuItem
-                  fontSize="md"
-                  px={4}
-                  py={3}
-                  isDisabled
-                  color="gray.500"
-                  cursor="not-allowed"
-                >
-                  Settings
-                </MenuItem>
               </MenuList>
             </Menu>
             <LanguageSelector />
