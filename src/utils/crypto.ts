@@ -8,10 +8,8 @@ export async function deriveEncryptionKey(
   challenge: string
 ): Promise<CryptoKey> {
   try {
-    // Combine credential ID and challenge for key derivation
     const keyMaterial = new TextEncoder().encode(credentialId + challenge)
 
-    // Import as raw key material
     const importedKey = await crypto.subtle.importKey(
       'raw',
       keyMaterial,
@@ -20,7 +18,6 @@ export async function deriveEncryptionKey(
       ['deriveKey']
     )
 
-    // Derive AES-GCM key
     return crypto.subtle.deriveKey(
       {
         name: 'PBKDF2',
@@ -49,12 +46,10 @@ export async function encryptData(data: string, key: CryptoKey): Promise<string>
 
     const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encodedData)
 
-    // Combine IV and encrypted data
     const combined = new Uint8Array(iv.length + encrypted.byteLength)
     combined.set(iv)
     combined.set(new Uint8Array(encrypted), iv.length)
 
-    // Return as base64
     return btoa(String.fromCharCode(...combined))
   } catch (error) {
     console.error('Failed to encrypt data:', error)
@@ -100,34 +95,56 @@ export async function decryptData(encryptedData: string, key: CryptoKey): Promis
 }
 
 /**
- * Generates a new Ethereum wallet
+ * Generates a new BIP39 wallet with HD derivation
+ * Uses BIP44 path: m/44'/60'/0'/0/0 for Ethereum
  */
-export function generateEthereumWallet(): { address: string; privateKey: string } {
+export function generateBIP39Wallet(): {
+  address: string
+  mnemonic: string
+} {
   try {
-    const wallet = ethers.Wallet.createRandom()
+    // Generate random mnemonic using ethers' utility
+    const mnemonic = ethers.Wallet.createRandom().mnemonic
+
+    if (!mnemonic) {
+      throw new Error('Failed to generate mnemonic')
+    }
+
+    const mnemonicPhrase = mnemonic.phrase
+
+    // Create HD wallet from mnemonic phrase with derivation path
+    const derivationPath = "m/44'/60'/0'/0/0"
+    const hdWallet = ethers.HDNodeWallet.fromPhrase(mnemonicPhrase, undefined, derivationPath)
+
     return {
-      address: wallet.address,
-      privateKey: wallet.privateKey,
+      address: hdWallet.address,
+      mnemonic: mnemonicPhrase,
     }
   } catch (error) {
-    console.error('Failed to generate Ethereum wallet:', error)
+    console.error('Failed to generate BIP39 wallet:', error)
     throw new Error('Wallet generation failed')
   }
 }
 
 /**
- * Creates wallet from private key
+ * Creates wallet from mnemonic phrase
+ * Uses BIP44 path: m/44'/60'/0'/0/0
  */
-export function createWalletFromPrivateKey(privateKey: string): ethers.Wallet {
+export function createWalletFromMnemonic(mnemonic: string): ethers.HDNodeWallet {
   try {
-    if (!privateKey || !privateKey.startsWith('0x') || privateKey.length !== 66) {
-      throw new Error('Invalid private key format')
+    if (!mnemonic || mnemonic.trim().split(/\s+/).length < 12) {
+      throw new Error('Invalid mnemonic: must be at least 12 words')
     }
-    return new ethers.Wallet(privateKey)
+
+    // Create HD wallet with derivation path directly
+    const derivationPath = "m/44'/60'/0'/0/0"
+    const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic.trim(), undefined, derivationPath)
+
+    return wallet
   } catch (error) {
-    console.error('Failed to create wallet from private key:', error)
+    console.error('Failed to create wallet from mnemonic:', error)
     throw new Error(
-      'Wallet creation failed: ' + (error instanceof Error ? error.message : 'Invalid private key')
+      'Wallet creation failed: ' + (error instanceof Error ? error.message : 'Invalid mnemonic')
     )
   }
 }

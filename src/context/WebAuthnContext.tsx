@@ -3,13 +3,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import { useToast } from '@chakra-ui/react'
-import { ethers } from 'ethers'
 import {
   deriveEncryptionKey,
   encryptData,
   decryptData,
-  generateEthereumWallet,
-  createWalletFromPrivateKey,
+  generateBIP39Wallet,
+  createWalletFromMnemonic,
 } from '@/utils/crypto'
 
 interface WebAuthnUser {
@@ -45,7 +44,7 @@ interface WebAuthnProviderProps {
   children: ReactNode
 }
 
-// IndexedDB management for encrypted private key storage
+// IndexedDB management for encrypted mnemonic storage
 const DB_NAME = 'WebAuthnWallet'
 const DB_VERSION = 1
 const STORE_NAME = 'wallets'
@@ -72,9 +71,9 @@ class WalletStorage {
     })
   }
 
-  async storeEncryptedKey(
+  async storeEncryptedMnemonic(
     ethereumAddress: string,
-    encryptedPrivateKey: string,
+    encryptedMnemonic: string,
     credentialId: string,
     challenge: string
   ): Promise<void> {
@@ -86,7 +85,7 @@ class WalletStorage {
 
       const walletData = {
         ethereumAddress,
-        encryptedPrivateKey,
+        encryptedMnemonic,
         credentialId,
         challenge,
         createdAt: Date.now(),
@@ -98,9 +97,9 @@ class WalletStorage {
     })
   }
 
-  async getEncryptedKey(
+  async getEncryptedMnemonic(
     ethereumAddress: string
-  ): Promise<{ encryptedPrivateKey: string; credentialId: string; challenge: string } | null> {
+  ): Promise<{ encryptedMnemonic: string; credentialId: string; challenge: string } | null> {
     if (!this.db) await this.init()
 
     return new Promise((resolve, reject) => {
@@ -113,7 +112,7 @@ class WalletStorage {
         const result = request.result
         if (result) {
           resolve({
-            encryptedPrivateKey: result.encryptedPrivateKey,
+            encryptedMnemonic: result.encryptedMnemonic,
             credentialId: result.credentialId,
             challenge: result.challenge,
           })
@@ -170,8 +169,8 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
       setIsLoading(true)
       console.log('=== Starting Registration ===')
 
-      // Step 1: Generate Ethereum wallet client-side
-      const { address, privateKey } = generateEthereumWallet()
+      // Step 1: Generate BIP39 wallet client-side
+      const { address, mnemonic } = generateBIP39Wallet()
       console.log('Generated Ethereum address:', address)
 
       // Step 2: Begin registration - send only public address
@@ -195,18 +194,18 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
       // Step 3: WebAuthn registration
       const credential = await startRegistration(webauthnOptions)
 
-      // Step 4: Encrypt private key with WebAuthn-derived key
+      // Step 4: Encrypt mnemonic with WebAuthn-derived key
       const encryptionKey = await deriveEncryptionKey(credential.id, webauthnOptions.challenge)
-      const encryptedPrivateKey = await encryptData(privateKey, encryptionKey)
+      const encryptedMnemonic = await encryptData(mnemonic, encryptionKey)
 
-      // Step 5: Store encrypted private key in IndexedDB
-      await walletStorage.storeEncryptedKey(
+      // Step 5: Store encrypted mnemonic in IndexedDB
+      await walletStorage.storeEncryptedMnemonic(
         address,
-        encryptedPrivateKey,
+        encryptedMnemonic,
         credential.id,
         webauthnOptions.challenge
       )
-      console.log('Encrypted private key stored in IndexedDB')
+      console.log('Encrypted mnemonic stored in IndexedDB')
 
       // Step 6: Complete registration with API
       const completeResponse = await fetch(`${API_BASE_URL}/webauthn/register/complete`, {
@@ -224,7 +223,7 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
         throw new Error('Registration verification failed')
       }
 
-      // Step 7: Store user data (no private key in localStorage)
+      // Step 7: Store user data (no mnemonic in localStorage)
       const userData: WebAuthnUser = {
         id: address,
         username: username,
@@ -324,7 +323,7 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
       localStorage.setItem('webauthn_authenticated', 'true')
 
       // Check if wallet exists in IndexedDB
-      const walletData = await walletStorage.getEncryptedKey(userData.ethereumAddress)
+      const walletData = await walletStorage.getEncryptedMnemonic(userData.ethereumAddress)
       const hasWallet = !!walletData
 
       toast({
@@ -367,7 +366,7 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
       console.log('=== Starting Message Signing ===')
 
       // Step 1: Check if wallet exists in IndexedDB
-      const walletData = await walletStorage.getEncryptedKey(user.ethereumAddress)
+      const walletData = await walletStorage.getEncryptedMnemonic(user.ethereumAddress)
       if (!walletData) {
         toast({
           title: 'No Wallet Found',
@@ -424,19 +423,19 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
         throw new Error('Authentication verification failed for signing')
       }
 
-      // Step 3: Decrypt private key using stored credentials
-      console.log('Decrypting private key for signing...')
+      // Step 3: Decrypt mnemonic using stored credentials
+      console.log('Decrypting mnemonic for signing...')
       const encryptionKey = await deriveEncryptionKey(walletData.credentialId, walletData.challenge)
-      const decryptedPrivateKey = await decryptData(walletData.encryptedPrivateKey, encryptionKey)
-      const wallet = createWalletFromPrivateKey(decryptedPrivateKey)
+      const decryptedMnemonic = await decryptData(walletData.encryptedMnemonic, encryptionKey)
+      const wallet = createWalletFromMnemonic(decryptedMnemonic)
 
       // Step 4: Sign the message
       console.log('Signing message...')
       const signature = await wallet.signMessage(message)
 
-      // Step 5: Immediately clear decrypted private key from memory
-      // Note: The wallet object and private key will be garbage collected
-      console.log('Message signed successfully, private key cleared from memory')
+      // Step 5: Immediately clear decrypted mnemonic from memory
+      // Note: The wallet object and mnemonic will be garbage collected
+      console.log('Message signed successfully, mnemonic cleared from memory')
 
       return signature
     } catch (error: any) {
