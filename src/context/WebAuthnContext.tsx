@@ -40,6 +40,8 @@ interface WebAuthnProviderProps {
 export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) => {
   const [w3pk, setW3pk] = useState<Web3Passkey | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [user, setUser] = useState<WebAuthnUser | null>(null)
   const toast = useToast()
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_WEBAUTHN_API_URL
@@ -64,24 +66,20 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
           isClosable: true,
         })
       },
-      onAuthStateChanged: (isAuth, user) => {
-        console.log('Auth state changed:', isAuth, user?.username)
+      onAuthStateChanged: (isAuth, w3pkUser) => {
+        console.log('Auth state changed:', isAuth, w3pkUser?.username)
+        // Update React state when SDK auth state changes
+        setIsAuthenticated(isAuth)
+        setUser(w3pkUser as WebAuthnUser | null)
       },
     })
 
     setW3pk(sdk)
-  }, [API_BASE_URL, toast])
 
-  // Convert w3pk user to WebAuthnUser format
-  const convertUser = (w3pkUser: any): WebAuthnUser | null => {
-    if (!w3pkUser) return null
-    return {
-      id: w3pkUser.id,
-      username: w3pkUser.username,
-      displayName: w3pkUser.username,
-      ethereumAddress: w3pkUser.ethereumAddress,
-    }
-  }
+    // Initialize auth state from SDK
+    setIsAuthenticated(sdk.isAuthenticated)
+    setUser(sdk.user as WebAuthnUser | null)
+  }, [API_BASE_URL, toast])
 
   const register = async (username: string) => {
     if (!w3pk) {
@@ -93,7 +91,7 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
       console.log('=== Starting Registration ===')
 
       // w3pk handles everything internally now
-      const result = await w3pk.registerSimplified({ username })
+      const result = await w3pk.register({ username })
 
       toast({
         title: 'Registration Successful',
@@ -186,7 +184,7 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
     try {
       console.log('=== Starting Message Signing ===')
 
-      const signature = await w3pk.signMessageSimplified(message)
+      const signature = await w3pk.signMessage(message)
 
       toast({
         title: 'Message Signed Successfully',
@@ -221,8 +219,8 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
   return (
     <WebAuthnContext.Provider
       value={{
-        isAuthenticated: w3pk?.isAuthenticated ?? false,
-        user: convertUser(w3pk?.user),
+        isAuthenticated,
+        user,
         isLoading,
         login,
         register,

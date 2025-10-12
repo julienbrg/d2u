@@ -2,6 +2,8 @@
 
 UI for [NestJS-based WebAuthn auth service API](https://github.com/julienbrg/nestjs-webauthn).
 
+D2U is using [W3PK](https://github.com/w3hc/w3pk), the WebAuthn SDK for passwordless authentication and encrypted file storage with optional zero-knowledge humanity proofs.
+
 ## Install
 
 ```bash
