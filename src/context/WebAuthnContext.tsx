@@ -1,15 +1,8 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import { useToast } from '@chakra-ui/react'
-import {
-  deriveEncryptionKey,
-  encryptData,
-  decryptData,
-  generateBIP39Wallet,
-  createWalletFromMnemonic,
-} from '@/utils/crypto'
+import { createWeb3Passkey, Web3Passkey } from 'w3pk'
 
 interface WebAuthnUser {
   id: string
@@ -44,214 +37,87 @@ interface WebAuthnProviderProps {
   children: ReactNode
 }
 
-// IndexedDB management for encrypted mnemonic storage
-const DB_NAME = 'WebAuthnWallet'
-const DB_VERSION = 1
-const STORE_NAME = 'wallets'
-
-class WalletStorage {
-  private db: IDBDatabase | null = null
-
-  async init(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION)
-
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => {
-        this.db = request.result
-        resolve()
-      }
-
-      request.onupgradeneeded = () => {
-        const db = request.result
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME, { keyPath: 'ethereumAddress' })
-        }
-      }
-    })
-  }
-
-  async storeEncryptedMnemonic(
-    ethereumAddress: string,
-    encryptedMnemonic: string,
-    credentialId: string,
-    challenge: string
-  ): Promise<void> {
-    if (!this.db) await this.init()
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORE_NAME], 'readwrite')
-      const store = transaction.objectStore(STORE_NAME)
-
-      const walletData = {
-        ethereumAddress,
-        encryptedMnemonic,
-        credentialId,
-        challenge,
-        createdAt: Date.now(),
-      }
-
-      const request = store.put(walletData)
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => resolve()
-    })
-  }
-
-  async getEncryptedMnemonic(
-    ethereumAddress: string
-  ): Promise<{ encryptedMnemonic: string; credentialId: string; challenge: string } | null> {
-    if (!this.db) await this.init()
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORE_NAME], 'readonly')
-      const store = transaction.objectStore(STORE_NAME)
-
-      const request = store.get(ethereumAddress)
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => {
-        const result = request.result
-        if (result) {
-          resolve({
-            encryptedMnemonic: result.encryptedMnemonic,
-            credentialId: result.credentialId,
-            challenge: result.challenge,
-          })
-        } else {
-          resolve(null)
-        }
-      }
-    })
-  }
-
-  async deleteWallet(ethereumAddress: string): Promise<void> {
-    if (!this.db) await this.init()
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORE_NAME], 'readwrite')
-      const store = transaction.objectStore(STORE_NAME)
-
-      const request = store.delete(ethereumAddress)
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => resolve()
-    })
-  }
-}
-
 export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) => {
+  const [w3pk, setW3pk] = useState<Web3Passkey | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [user, setUser] = useState<WebAuthnUser | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
   const toast = useToast()
-  const walletStorage = new WalletStorage()
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_WEBAUTHN_API_URL
 
-  // Load stored authentication state on mount
+  // Initialize w3pk SDK
   useEffect(() => {
-    const storedUser = localStorage.getItem('webauthn_user')
-    const storedAuth = localStorage.getItem('webauthn_authenticated')
-
-    if (storedUser && storedAuth === 'true') {
-      try {
-        const userData = JSON.parse(storedUser)
-        setUser(userData)
-        setIsAuthenticated(true)
-      } catch (error) {
-        console.error('Failed to parse stored user data:', error)
-        localStorage.removeItem('webauthn_user')
-        localStorage.removeItem('webauthn_authenticated')
-      }
+    if (!API_BASE_URL) {
+      console.error('NEXT_PUBLIC_WEBAUTHN_API_URL is not set')
+      return
     }
-  }, [])
+
+    const sdk = createWeb3Passkey({
+      apiBaseUrl: API_BASE_URL,
+      debug: process.env.NODE_ENV === 'development',
+      onError: error => {
+        console.error('w3pk Error:', error)
+        toast({
+          title: 'Error',
+          description: error.message,
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        })
+      },
+      onAuthStateChanged: (isAuth, w3pkUser) => {
+        console.log('Auth state changed:', isAuth, w3pkUser?.username)
+        // Update React state when SDK auth state changes
+        setIsAuthenticated(isAuth)
+        setUser(w3pkUser as WebAuthnUser | null)
+      },
+    })
+
+    setW3pk(sdk)
+
+    // Initialize auth state from SDK
+    setIsAuthenticated(sdk.isAuthenticated)
+    setUser(sdk.user as WebAuthnUser | null)
+  }, [API_BASE_URL, toast])
 
   const register = async (username: string) => {
+    if (!w3pk) {
+      throw new Error('SDK not initialized')
+    }
+
     try {
       setIsLoading(true)
       console.log('=== Starting Registration ===')
 
-      // Step 1: Generate BIP39 wallet client-side
-      const { address, mnemonic } = generateBIP39Wallet()
-      console.log('Generated Ethereum address:', address)
-
-      // Step 2: Begin registration - send only public address
-      const beginResponse = await fetch(`${API_BASE_URL}/webauthn/register/begin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, ethereumAddress: address }),
-      })
-
-      if (!beginResponse.ok) {
-        throw new Error(`Registration begin failed: ${beginResponse.status}`)
-      }
-
-      const beginResult = await beginResponse.json()
-      if (!beginResult.success || !beginResult.data?.options) {
-        throw new Error('Invalid registration options received')
-      }
-
-      const webauthnOptions = beginResult.data.options
-
-      // Step 3: WebAuthn registration
-      const credential = await startRegistration(webauthnOptions)
-
-      // Step 4: Encrypt mnemonic with WebAuthn-derived key
-      const encryptionKey = await deriveEncryptionKey(credential.id, webauthnOptions.challenge)
-      const encryptedMnemonic = await encryptData(mnemonic, encryptionKey)
-
-      // Step 5: Store encrypted mnemonic in IndexedDB
-      await walletStorage.storeEncryptedMnemonic(
-        address,
-        encryptedMnemonic,
-        credential.id,
-        webauthnOptions.challenge
-      )
-      console.log('Encrypted mnemonic stored in IndexedDB')
-
-      // Step 6: Complete registration with API
-      const completeResponse = await fetch(`${API_BASE_URL}/webauthn/register/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ethereumAddress: address, response: credential }),
-      })
-
-      if (!completeResponse.ok) {
-        throw new Error(`Registration complete failed: ${completeResponse.status}`)
-      }
-
-      const completeResult = await completeResponse.json()
-      if (!completeResult.success) {
-        throw new Error('Registration verification failed')
-      }
-
-      // Step 7: Store user data (no mnemonic in localStorage)
-      const userData: WebAuthnUser = {
-        id: address,
-        username: username,
-        displayName: username,
-        ethereumAddress: address,
-      }
-
-      setUser(userData)
-      setIsAuthenticated(true)
-      localStorage.setItem('webauthn_user', JSON.stringify(userData))
-      localStorage.setItem('webauthn_authenticated', 'true')
+      // w3pk handles everything internally now
+      const result = await w3pk.register({ username })
 
       toast({
         title: 'Registration Successful',
-        description: 'Your encrypted wallet has been created and stored securely',
+        description: result.mnemonic
+          ? `Your wallet has been created. IMPORTANT: Save this mnemonic: ${result.mnemonic}`
+          : 'Your encrypted wallet has been created and stored securely',
         status: 'success',
-        duration: 5000,
+        duration: result.mnemonic ? 30000 : 5000, // Longer if showing mnemonic
         isClosable: true,
       })
+
+      if (result.mnemonic) {
+        // Show a second toast as a backup reminder
+        setTimeout(() => {
+          toast({
+            title: '⚠️ Backup Reminder',
+            description: 'Did you save your mnemonic? You will need it to recover your wallet.',
+            status: 'warning',
+            duration: 10000,
+            isClosable: true,
+          })
+        }, 2000)
+      }
     } catch (error: any) {
       console.error('Registration failed:', error)
-      toast({
-        title: 'Registration Failed',
-        description: error.message || 'Failed to register passkey',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      })
+      // Error already handled by onError callback
       throw error
     } finally {
       setIsLoading(false)
@@ -259,91 +125,33 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
   }
 
   const login = async () => {
+    if (!w3pk) {
+      throw new Error('SDK not initialized')
+    }
+
     try {
       setIsLoading(true)
       console.log('=== Starting Authentication ===')
 
-      // Step 1: Begin usernameless authentication
-      const beginResponse = await fetch(
-        `${API_BASE_URL}/webauthn/authenticate/usernameless/begin`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      const result = await w3pk.login()
 
-      if (!beginResponse.ok) {
-        throw new Error(`Authentication begin failed: ${beginResponse.status}`)
+      if (result.verified && result.user) {
+        // Check if wallet exists on this device
+        const hasWallet = await w3pk.hasWallet()
+
+        toast({
+          title: 'Login Successful',
+          description: hasWallet
+            ? `Welcome back, ${result.user.username}! Your wallet is available.`
+            : `Welcome back, ${result.user.username}! No wallet found on this device.`,
+          status: hasWallet ? 'success' : 'warning',
+          duration: 5000,
+          isClosable: true,
+        })
       }
-
-      const beginResult = await beginResponse.json()
-
-      let webauthnOptions
-      if (beginResult.success && beginResult.data?.options) {
-        webauthnOptions = beginResult.data.options
-      } else if (beginResult.challenge) {
-        webauthnOptions = beginResult
-      } else {
-        throw new Error('Invalid authentication options received')
-      }
-
-      // Step 2: WebAuthn authentication
-      const credential = await startAuthentication(webauthnOptions)
-
-      // Step 3: Complete authentication
-      const completeResponse = await fetch(
-        `${API_BASE_URL}/webauthn/authenticate/usernameless/complete`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ response: credential }),
-        }
-      )
-
-      if (!completeResponse.ok) {
-        throw new Error(`Authentication complete failed: ${completeResponse.status}`)
-      }
-
-      const completeResult = await completeResponse.json()
-      if (!completeResult.success || !completeResult.data?.user) {
-        throw new Error('Authentication verification failed')
-      }
-
-      // Step 4: Set user data (no decryption during login)
-      const userData: WebAuthnUser = {
-        id: completeResult.data.user.id,
-        username: completeResult.data.user.username,
-        displayName: completeResult.data.user.username,
-        ethereumAddress: completeResult.data.user.id,
-      }
-
-      setUser(userData)
-      setIsAuthenticated(true)
-      localStorage.setItem('webauthn_user', JSON.stringify(userData))
-      localStorage.setItem('webauthn_authenticated', 'true')
-
-      // Check if wallet exists in IndexedDB
-      const walletData = await walletStorage.getEncryptedMnemonic(userData.ethereumAddress)
-      const hasWallet = !!walletData
-
-      toast({
-        title: 'Login Successful',
-        description: hasWallet
-          ? `Welcome back, ${userData.displayName}! Your wallet is available.`
-          : `Welcome back, ${userData.displayName}! No wallet found on this device.`,
-        status: hasWallet ? 'success' : 'warning',
-        duration: 5000,
-        isClosable: true,
-      })
     } catch (error: any) {
       console.error('Authentication failed:', error)
-      toast({
-        title: 'Authentication Failed',
-        description: error.message || 'Failed to authenticate with passkey',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      })
+      // Error already handled by onError callback
       throw error
     } finally {
       setIsLoading(false)
@@ -351,7 +159,18 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
   }
 
   const signMessage = async (message: string): Promise<string | null> => {
-    if (!user) {
+    if (!w3pk) {
+      toast({
+        title: 'Error',
+        description: 'SDK not initialized',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      })
+      return null
+    }
+
+    if (!w3pk.isAuthenticated) {
       toast({
         title: 'Not Authenticated',
         description: 'Please log in first',
@@ -365,97 +184,28 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
     try {
       console.log('=== Starting Message Signing ===')
 
-      // Step 1: Check if wallet exists in IndexedDB
-      const walletData = await walletStorage.getEncryptedMnemonic(user.ethereumAddress)
-      if (!walletData) {
-        toast({
-          title: 'No Wallet Found',
-          description:
-            'No encrypted wallet found on this device. Please register to create a new wallet.',
-          status: 'warning',
-          duration: 5000,
-          isClosable: true,
-        })
-        return null
-      }
+      const signature = await w3pk.signMessage(message)
 
-      // Step 2: Require fresh WebAuthn authentication for signing
-      console.log('Requesting WebAuthn authentication for signing...')
-      const beginResponse = await fetch(
-        `${API_BASE_URL}/webauthn/authenticate/usernameless/begin`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-
-      if (!beginResponse.ok) {
-        throw new Error('Failed to begin authentication for signing')
-      }
-
-      const beginResult = await beginResponse.json()
-      let webauthnOptions
-      if (beginResult.success && beginResult.data?.options) {
-        webauthnOptions = beginResult.data.options
-      } else if (beginResult.challenge) {
-        webauthnOptions = beginResult
-      } else {
-        throw new Error('Invalid authentication options received')
-      }
-
-      const credential = await startAuthentication(webauthnOptions)
-
-      const completeResponse = await fetch(
-        `${API_BASE_URL}/webauthn/authenticate/usernameless/complete`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ response: credential }),
-        }
-      )
-
-      if (!completeResponse.ok) {
-        throw new Error('Authentication failed for signing')
-      }
-
-      const completeResult = await completeResponse.json()
-      if (!completeResult.success) {
-        throw new Error('Authentication verification failed for signing')
-      }
-
-      // Step 3: Decrypt mnemonic using stored credentials
-      console.log('Decrypting mnemonic for signing...')
-      const encryptionKey = await deriveEncryptionKey(walletData.credentialId, walletData.challenge)
-      const decryptedMnemonic = await decryptData(walletData.encryptedMnemonic, encryptionKey)
-      const wallet = createWalletFromMnemonic(decryptedMnemonic)
-
-      // Step 4: Sign the message
-      console.log('Signing message...')
-      const signature = await wallet.signMessage(message)
-
-      // Step 5: Immediately clear decrypted mnemonic from memory
-      // Note: The wallet object and mnemonic will be garbage collected
-      console.log('Message signed successfully, mnemonic cleared from memory')
+      toast({
+        title: 'Message Signed Successfully',
+        description: 'Your message has been cryptographically signed with fresh authentication',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      })
 
       return signature
     } catch (error: any) {
       console.error('Message signing failed:', error)
-      toast({
-        title: 'Signing Failed',
-        description: error.message || 'Failed to sign message',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      })
+      // Error already handled by onError callback
       return null
     }
   }
 
   const logout = () => {
-    setIsAuthenticated(false)
-    setUser(null)
-    localStorage.removeItem('webauthn_authenticated')
-    // Note: Keep user data and IndexedDB wallet for device persistence
+    if (!w3pk) return
+
+    w3pk.logout()
 
     toast({
       title: 'Logged Out',
