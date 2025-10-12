@@ -38,13 +38,11 @@ import {
   ModalFooter,
   HStack,
   Flex,
-  Spacer,
 } from '@chakra-ui/react'
 import { useWebAuthn } from '@/context/WebAuthnContext'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { FiDownload, FiTrash2, FiRefreshCw, FiMoreVertical, FiUpload } from 'react-icons/fi'
-import { startAuthentication } from '@simplewebauthn/browser'
 
 interface FileInfo {
   filename: string
@@ -62,7 +60,7 @@ interface UserStorageStats {
 }
 
 export default function Upload() {
-  const { isAuthenticated, user } = useWebAuthn()
+  const { isAuthenticated, user, signMessage } = useWebAuthn()
   const t = useTranslation()
   const toast = useToast()
 
@@ -117,49 +115,17 @@ export default function Upload() {
     }
   }, [isAuthenticated, user, loadUserFiles])
 
-  // WebAuthn authentication function
+  // WebAuthn authentication function using w3pk
   const authenticateWithPasskey = async (): Promise<boolean> => {
     try {
       setIsAuthenticating(true)
 
-      // Step 1: Begin authentication
-      const beginResponse = await fetch(`${API_BASE}/webauthn/authenticate/usernameless/begin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      })
+      // Use w3pk's signMessage which handles authentication internally
+      // We just need to sign a simple authentication message
+      const authMessage = `Authenticate for file operation at ${new Date().toISOString()}`
+      const signature = await signMessage(authMessage)
 
-      if (!beginResponse.ok) {
-        throw new Error('Failed to begin authentication')
-      }
-
-      const beginResult = await beginResponse.json()
-      let webauthnOptions
-      if (beginResult.success && beginResult.data?.options) {
-        webauthnOptions = beginResult.data.options
-      } else if (beginResult.challenge) {
-        webauthnOptions = beginResult
-      } else {
-        throw new Error('Invalid authentication options received')
-      }
-
-      // Step 2: Complete WebAuthn authentication
-      const credential = await startAuthentication(webauthnOptions)
-
-      const completeResponse = await fetch(
-        `${API_BASE}/webauthn/authenticate/usernameless/complete`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ response: credential }),
-        }
-      )
-
-      if (!completeResponse.ok) {
-        throw new Error('Authentication verification failed')
-      }
-
-      const completeResult = await completeResponse.json()
-      if (!completeResult.success) {
+      if (!signature) {
         throw new Error('Authentication failed')
       }
 
@@ -179,15 +145,130 @@ export default function Upload() {
     }
   }
 
+  // File validation constants
+  const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+  const ALLOWED_FILE_TYPES = [
+    // Documents
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain',
+    'text/csv',
+    // Images
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+    // Archives
+    'application/zip',
+    'application/x-zip-compressed',
+    'application/x-rar-compressed',
+    'application/x-7z-compressed',
+    // Video
+    'video/mp4',
+    'video/mpeg',
+    'video/quicktime',
+    'video/x-msvideo',
+    // Audio
+    'audio/mpeg',
+    'audio/wav',
+    'audio/ogg',
+    // Code
+    'application/json',
+    'application/javascript',
+    'text/html',
+    'text/css',
+  ]
+
+  const validateFile = (file: File): { valid: boolean; error?: string } => {
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return {
+        valid: false,
+        error: `File size exceeds the maximum limit of ${formatFileSize(MAX_FILE_SIZE)}. Your file is ${formatFileSize(file.size)}.`,
+      }
+    }
+
+    // Check file type
+    if (!ALLOWED_FILE_TYPES.includes(file.type) && file.type !== '') {
+      // Get file extension for display
+      const extension = file.name.split('.').pop()?.toUpperCase() || 'Unknown'
+      return {
+        valid: false,
+        error: `File type "${extension}" (${file.type}) is not supported. Please upload documents, images, archives, or media files.`,
+      }
+    }
+
+    // Additional check for suspicious or potentially dangerous files
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.sh', '.app', '.dmg', '.msi', '.scr']
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'))
+    if (dangerousExtensions.includes(fileExtension)) {
+      return {
+        valid: false,
+        error: `Executable files (${fileExtension}) are not allowed for security reasons.`,
+      }
+    }
+
+    return { valid: true }
+  }
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
+      const validation = validateFile(file)
+
+      if (!validation.valid) {
+        toast({
+          title: 'Invalid File',
+          description: validation.error,
+          status: 'error',
+          duration: 8000,
+          isClosable: true,
+        })
+        // Clear the input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+        setSelectedFile(null)
+        return
+      }
+
       setSelectedFile(file)
+      toast({
+        title: 'File Selected',
+        description: `${file.name} (${formatFileSize(file.size)}) ready to upload`,
+        status: 'info',
+        duration: 3000,
+        isClosable: true,
+      })
     }
   }
 
   const uploadFile = async () => {
     if (!selectedFile || !user) return
+
+    // Double-check validation before upload
+    const validation = validateFile(selectedFile)
+    if (!validation.valid) {
+      toast({
+        title: 'Upload Cancelled',
+        description: validation.error,
+        status: 'error',
+        duration: 8000,
+        isClosable: true,
+      })
+      setSelectedFile(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+      return
+    }
 
     // Require authentication before upload
     const isAuthenticated = await authenticateWithPasskey()
@@ -230,15 +311,38 @@ export default function Upload() {
         }
         await loadUserFiles() // Reload files
       } else {
-        throw new Error(result.message || 'Upload failed')
+        // Handle specific error cases from backend
+        if (result.message?.includes('size')) {
+          throw new Error(
+            `Server rejected file: ${result.message}. Maximum size is ${formatFileSize(MAX_FILE_SIZE)}.`
+          )
+        } else if (result.message?.includes('type') || result.message?.includes('format')) {
+          throw new Error(`Server rejected file type: ${result.message}`)
+        } else {
+          throw new Error(result.message || 'Upload failed')
+        }
       }
     } catch (error: any) {
       console.error('Upload failed:', error)
+
+      // Provide more helpful error messages
+      let errorMessage = error.message || 'Failed to upload file'
+
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
+      } else if (error.message?.includes('413')) {
+        errorMessage = `File too large for server. Maximum size is ${formatFileSize(MAX_FILE_SIZE)}.`
+      } else if (error.message?.includes('415')) {
+        errorMessage = 'File type not supported by server.'
+      } else if (error.message?.includes('507')) {
+        errorMessage = 'Server storage full. Please contact support.'
+      }
+
       toast({
         title: 'Upload Failed',
-        description: error.message || 'Failed to upload file',
+        description: errorMessage,
         status: 'error',
-        duration: 5000,
+        duration: 8000,
         isClosable: true,
       })
     } finally {
@@ -396,7 +500,7 @@ export default function Upload() {
             </Text>
           )}
           <Text fontSize="xs" color="yellow.300" mt={2}>
-            Passkey authentication required for upload, download, and delete operations
+            🔐 Passkey authentication required for all file operations
           </Text>
         </Box>
 
@@ -440,9 +544,34 @@ export default function Upload() {
 
             {selectedFile && (
               <Box p={3} bg="gray.700" borderRadius="md">
-                <Text fontSize="sm" color="gray.300">
-                  Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
-                </Text>
+                <HStack justify="space-between">
+                  <Box>
+                    <Text fontSize="sm" color="gray.300">
+                      Selected: {selectedFile.name}
+                    </Text>
+                    <HStack spacing={2} mt={1}>
+                      <Badge colorScheme="blue" size="sm">
+                        {formatFileSize(selectedFile.size)}
+                      </Badge>
+                      <Badge colorScheme="green" size="sm">
+                        ✓ Valid
+                      </Badge>
+                    </HStack>
+                  </Box>
+                  <IconButton
+                    aria-label="Clear selection"
+                    icon={<FiTrash2 />}
+                    size="sm"
+                    variant="ghost"
+                    colorScheme="red"
+                    onClick={() => {
+                      setSelectedFile(null)
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = ''
+                      }
+                    }}
+                  />
+                </HStack>
               </Box>
             )}
 
@@ -623,13 +752,21 @@ export default function Upload() {
           <Text fontSize="sm" color="gray.400" mb={2}>
             <strong>File Storage Information:</strong>
           </Text>
-          <Text fontSize="xs" color="gray.500" mb={3}>
+          <Text fontSize="xs" color="gray.500" mb={2}>
             Your files are securely stored and associated with your WebAuthn-authenticated account.
             Only you can access, download, or delete your files.
           </Text>
+          <Text fontSize="xs" color="gray.500" mb={2}>
+            <strong>Limits:</strong> Maximum file size: {formatFileSize(MAX_FILE_SIZE)} per file
+          </Text>
+          <Text fontSize="xs" color="gray.500" mb={3}>
+            <strong>Supported formats:</strong> Documents (PDF, Word, Excel), Images (JPG, PNG, GIF,
+            WebP, SVG), Archives (ZIP, RAR, 7Z), Video (MP4, MOV), Audio (MP3, WAV), Code files
+            (JSON, JS, HTML, CSS)
+          </Text>
           <Text fontSize="xs" color="yellow.300">
-            Security Note: All file operations (upload, download, delete) require fresh passkey
-            authentication for maximum security.
+            🔐 Security Note: All file operations (upload, download, delete) require fresh passkey
+            authentication powered by w3pk SDK for maximum security.
           </Text>
         </Box>
       </VStack>
