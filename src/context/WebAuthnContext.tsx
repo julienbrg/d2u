@@ -1,8 +1,16 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useMemo,
+  useCallback,
+  useEffect,
+} from 'react'
 import { useToast } from '@chakra-ui/react'
-import { createWeb3Passkey, Web3Passkey } from 'w3pk'
+import { createWeb3Passkey, StealthKeys } from 'w3pk'
 
 interface WebAuthnUser {
   id: string
@@ -19,6 +27,12 @@ interface WebAuthnContextType {
   register: (username: string) => Promise<void>
   logout: () => void
   signMessage: (message: string) => Promise<string | null>
+  generateStealthAddress: () => Promise<{
+    stealthAddress: string
+    stealthPrivateKey: string
+    ephemeralPublicKey: string
+  } | null>
+  getStealthKeys: () => Promise<StealthKeys | null>
 }
 
 const WebAuthnContext = createContext<WebAuthnContextType>({
@@ -29,6 +43,8 @@ const WebAuthnContext = createContext<WebAuthnContextType>({
   register: async (username: string) => {},
   logout: () => {},
   signMessage: async (message: string) => null,
+  generateStealthAddress: async () => null,
+  getStealthKeys: async () => null,
 })
 
 export const useWebAuthn = () => useContext(WebAuthnContext)
@@ -38,86 +54,85 @@ interface WebAuthnProviderProps {
 }
 
 export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) => {
-  const [w3pk, setW3pk] = useState<Web3Passkey | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [user, setUser] = useState<WebAuthnUser | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
   const toast = useToast()
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_WEBAUTHN_API_URL
-
-  // Initialize w3pk SDK
   useEffect(() => {
-    if (!API_BASE_URL) {
-      console.error('NEXT_PUBLIC_WEBAUTHN_API_URL is not set')
-      return
+    setIsMounted(true)
+  }, [])
+
+  // Stable callback to prevent w3pk re-creation
+  const handleAuthStateChanged = useCallback((isAuth: boolean, w3pkUser?: any) => {
+    if (isAuth && w3pkUser) {
+      const userData: WebAuthnUser = {
+        id: w3pkUser.id,
+        username: w3pkUser.username,
+        displayName: w3pkUser.displayName,
+        ethereumAddress: w3pkUser.ethereumAddress,
+      }
+      setUser(userData)
+      setIsAuthenticated(true)
+    } else {
+      setUser(null)
+      setIsAuthenticated(false)
     }
+  }, [])
 
-    const sdk = createWeb3Passkey({
-      apiBaseUrl: API_BASE_URL,
-      debug: process.env.NODE_ENV === 'development',
-      onError: error => {
-        console.error('w3pk Error:', error)
-        toast({
-          title: 'Error',
-          description: error.message,
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        })
-      },
-      onAuthStateChanged: (isAuth, w3pkUser) => {
-        console.log('Auth state changed:', isAuth, w3pkUser?.username)
-        // Update React state when SDK auth state changes
-        setIsAuthenticated(isAuth)
-        setUser(w3pkUser as WebAuthnUser | null)
-      },
-    })
+  // Initialize w3pk SDK with stealth address capabilities - memoized to prevent re-creation
+  const w3pk = useMemo(
+    () =>
+      createWeb3Passkey({
+        apiBaseUrl: process.env.NEXT_PUBLIC_WEBAUTHN_API_URL || 'https://webauthn.w3hc.org',
+        stealthAddresses: {}, // Enable stealth address generation
+        debug: process.env.NODE_ENV === 'development',
+        onAuthStateChanged: handleAuthStateChanged,
+      }),
+    [handleAuthStateChanged]
+  )
 
-    setW3pk(sdk)
-
-    // Initialize auth state from SDK
-    setIsAuthenticated(sdk.isAuthenticated)
-    setUser(sdk.user as WebAuthnUser | null)
-  }, [API_BASE_URL, toast])
+  // w3pk handles auth state changes via onAuthStateChanged callback above
+  // No manual useEffect needed since w3pk manages its own state
 
   const register = async (username: string) => {
-    if (!w3pk) {
-      throw new Error('SDK not initialized')
-    }
-
     try {
       setIsLoading(true)
-      console.log('=== Starting Registration ===')
+      console.log('=== Starting Registration with w3pk ===')
 
-      // w3pk handles everything internally now
+      // Use w3pk for registration
       const result = await w3pk.register({ username })
+      console.log('Registration successful, address:', result.ethereumAddress)
 
       toast({
-        title: 'Registration Successful',
-        description: result.mnemonic
-          ? `Your wallet has been created. IMPORTANT: Save this mnemonic: ${result.mnemonic}`
-          : 'Your encrypted wallet has been created and stored securely',
+        title: 'Registration Successful! 🎉',
+        description: 'Your encrypted wallet has been created and stored securely with w3pk',
         status: 'success',
-        duration: result.mnemonic ? 30000 : 5000, // Longer if showing mnemonic
+        duration: 5000,
         isClosable: true,
       })
 
+      // If a mnemonic was generated, show backup warning
       if (result.mnemonic) {
-        // Show a second toast as a backup reminder
-        setTimeout(() => {
-          toast({
-            title: '⚠️ Backup Reminder',
-            description: 'Did you save your mnemonic? You will need it to recover your wallet.',
-            status: 'warning',
-            duration: 10000,
-            isClosable: true,
-          })
-        }, 2000)
+        toast({
+          title: '🚨 BACKUP YOUR RECOVERY PHRASE',
+          description:
+            'Save your 12-word recovery phrase in a safe place. This is your only backup!',
+          status: 'warning',
+          duration: 10000,
+          isClosable: true,
+        })
       }
     } catch (error: any) {
       console.error('Registration failed:', error)
-      // Error already handled by onError callback
+      toast({
+        title: 'Registration Failed',
+        description: error.message || 'Failed to register with w3pk',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      })
       throw error
     } finally {
       setIsLoading(false)
@@ -125,33 +140,35 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
   }
 
   const login = async () => {
-    if (!w3pk) {
-      throw new Error('SDK not initialized')
-    }
-
     try {
       setIsLoading(true)
-      console.log('=== Starting Authentication ===')
+      console.log('=== Starting Login with w3pk ===')
 
+      // Use w3pk for login - it handles everything internally
       const result = await w3pk.login()
+      console.log('Login successful, user:', result.user?.username)
 
-      if (result.verified && result.user) {
-        // Check if wallet exists on this device
-        const hasWallet = await w3pk.hasWallet()
+      // Check if wallet is available
+      const hasWallet = await w3pk.hasWallet()
 
-        toast({
-          title: 'Login Successful',
-          description: hasWallet
-            ? `Welcome back, ${result.user.username}! Your wallet is available.`
-            : `Welcome back, ${result.user.username}! No wallet found on this device.`,
-          status: hasWallet ? 'success' : 'warning',
-          duration: 5000,
-          isClosable: true,
-        })
-      }
+      toast({
+        title: 'Login Successful! ✅',
+        description: hasWallet
+          ? `Welcome back, ${result.user?.displayName}! Your wallet is available.`
+          : `Welcome back, ${result.user?.displayName}! No wallet found on this device.`,
+        status: hasWallet ? 'success' : 'warning',
+        duration: 5000,
+        isClosable: true,
+      })
     } catch (error: any) {
       console.error('Authentication failed:', error)
-      // Error already handled by onError callback
+      toast({
+        title: 'Authentication Failed',
+        description: error.message || 'Failed to authenticate with w3pk',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      })
       throw error
     } finally {
       setIsLoading(false)
@@ -159,18 +176,7 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
   }
 
   const signMessage = async (message: string): Promise<string | null> => {
-    if (!w3pk) {
-      toast({
-        title: 'Error',
-        description: 'SDK not initialized',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      })
-      return null
-    }
-
-    if (!w3pk.isAuthenticated) {
+    if (!user) {
       toast({
         title: 'Not Authenticated',
         description: 'Please log in first',
@@ -182,29 +188,28 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
     }
 
     try {
-      console.log('=== Starting Message Signing ===')
+      console.log('=== Starting Message Signing with w3pk ===')
 
+      // Use w3pk for message signing - it handles fresh WebAuthn authentication automatically
       const signature = await w3pk.signMessage(message)
-
-      toast({
-        title: 'Message Signed Successfully',
-        description: 'Your message has been cryptographically signed with fresh authentication',
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      })
+      console.log('Message signed successfully')
 
       return signature
     } catch (error: any) {
       console.error('Message signing failed:', error)
-      // Error already handled by onError callback
+      toast({
+        title: 'Signing Failed',
+        description: error.message || 'Failed to sign message with w3pk',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      })
       return null
     }
   }
 
   const logout = () => {
-    if (!w3pk) return
-
+    // Use w3pk logout
     w3pk.logout()
 
     toast({
@@ -216,16 +221,96 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
     })
   }
 
+  const generateStealthAddress = async (): Promise<{
+    stealthAddress: string
+    stealthPrivateKey: string
+    ephemeralPublicKey: string
+  } | null> => {
+    if (!user) {
+      toast({
+        title: 'Not Authenticated',
+        description: 'Please log in first',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      })
+      return null
+    }
+
+    try {
+      console.log('=== Generating Stealth Address with w3pk ===')
+
+      if (!w3pk.stealth) {
+        throw new Error('Stealth address module not initialized')
+      }
+
+      // Generate stealth address using w3pk
+      const stealthResult = await w3pk.stealth.generateStealthAddress()
+      console.log('Stealth address generated:', stealthResult.stealthAddress)
+
+      return stealthResult
+    } catch (error: any) {
+      console.error('Stealth address generation failed:', error)
+      toast({
+        title: 'Stealth Address Failed',
+        description: error.message || 'Failed to generate stealth address',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      })
+      return null
+    }
+  }
+
+  const getStealthKeys = async (): Promise<StealthKeys | null> => {
+    if (!user) {
+      toast({
+        title: 'Not Authenticated',
+        description: 'Please log in first',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      })
+      return null
+    }
+
+    try {
+      console.log('=== Getting Stealth Keys with w3pk ===')
+
+      if (!w3pk.stealth) {
+        throw new Error('Stealth address module not initialized')
+      }
+
+      // Get stealth keys using w3pk
+      const stealthKeys = await w3pk.stealth.getKeys()
+      console.log('Stealth keys retrieved, meta address:', stealthKeys.metaAddress)
+
+      return stealthKeys
+    } catch (error: any) {
+      console.error('Failed to get stealth keys:', error)
+      toast({
+        title: 'Stealth Keys Failed',
+        description: error.message || 'Failed to get stealth keys',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      })
+      return null
+    }
+  }
+
   return (
     <WebAuthnContext.Provider
       value={{
-        isAuthenticated,
+        isAuthenticated: isMounted && isAuthenticated,
         user,
         isLoading,
         login,
         register,
         logout,
         signMessage,
+        generateStealthAddress,
+        getStealthKeys,
       }}
     >
       {children}
