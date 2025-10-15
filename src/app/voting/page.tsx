@@ -49,12 +49,19 @@ import { ethers } from 'ethers'
 // Contract addresses - Define before component
 const STEALTH_GOV_ADDRESS = '0x7005CE8B623Ad7d7B112436c5315d2622bB96Ed7'
 const SBT_CONTRACT_ADDRESS = '0x991131B03Cd6feB99a814F7920a759e6838DFA81'
-// const SEPOLIA_RPC_URL = 'https://gateway.tenderly.co/public/sepolia'
-const SEPOLIA_RPC_URL = 'https://sepolia.infura.io/v3/85c7342e76ff4abdba62b31c07c53499'
+// Primary and fallback RPC URLs
+const PRIMARY_RPC_URL = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL
+const FALLBACK_RPC_URL = 'https://gateway.tenderly.co/public/sepolia'
 
 // Validate contract address format
 const isValidAddress = (address: string): boolean => {
-  return address && address.length === 42 && address.startsWith('0x')
+  return !!address && address.length === 42 && address.startsWith('0x')
+}
+
+// Create provider with fallback logic
+const createProvider = (useFallback: boolean = false): ethers.JsonRpcProvider => {
+  const rpcUrl = useFallback ? FALLBACK_RPC_URL : PRIMARY_RPC_URL
+  return new ethers.JsonRpcProvider(rpcUrl)
 }
 
 // StealthGov contract ABI
@@ -85,6 +92,11 @@ const STEALTH_GOV_ABI = [
 
   // Contract Info
   'function getSBTContract() view returns (address)',
+
+  // Events
+  'event ProposalCreated(uint256 indexed proposalId, string description, uint256 startTime, uint256 endTime)',
+  'event StealthVoteCast(uint256 indexed proposalId, address indexed stealthAddress, uint8 support, bytes ephemeralPubkey, uint256 timestamp, uint256 sbtTokenId, uint256 voteChangeCount)',
+  'event StealthVoteChanged(uint256 indexed proposalId, address indexed stealthAddress, uint8 oldSupport, uint8 newSupport, uint256 timestamp, uint256 sbtTokenId, uint256 newVoteChangeCount)',
 ]
 
 // SBT contract ABI
@@ -111,12 +123,11 @@ interface ProposalData {
 }
 
 export default function VotingPage() {
-  const { isAuthenticated, user, generateStealthAddress, signMessage } = useWebAuthn()
+  const { isAuthenticated, user } = useWebAuthn()
   const toast = useToast()
   const { isOpen: isCreateOpen, onOpen: onCreateOpen, onClose: onCreateClose } = useDisclosure()
 
-  // Get w3pk instance from context
-  const [w3pkWallet, setW3pkWallet] = useState<any>(null)
+  // State management
 
   const [proposals, setProposals] = useState<ProposalData[]>([])
   const [isLoadingProposals, setIsLoadingProposals] = useState(false)
@@ -126,9 +137,7 @@ export default function VotingPage() {
   const [hasSBT, setHasSBT] = useState(false)
   const [sbtTokenId, setSbtTokenId] = useState<number | null>(null)
   const [isMintingSBT, setIsMintingSBT] = useState(false)
-  const [sbtContractAddress, setSbtContractAddress] = useState<string>(SBT_CONTRACT_ADDRESS)
   const [ethBalance, setEthBalance] = useState<string>('0')
-  const [isCheckingBalance, setIsCheckingBalance] = useState(false)
   const [isFundingWallet, setIsFundingWallet] = useState(false)
 
   // Fetch proposals and check SBT on component mount
@@ -140,7 +149,7 @@ export default function VotingPage() {
     }
   }, [isAuthenticated, user?.ethereumAddress])
 
-  const fetchProposals = async () => {
+  const fetchProposals = async (useFallback: boolean = false) => {
     // Check if contract address is configured
     if (!isValidAddress(STEALTH_GOV_ADDRESS)) {
       console.warn('Contract address not configured')
@@ -151,31 +160,100 @@ export default function VotingPage() {
 
     setIsLoadingProposals(true)
     try {
-      const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL)
+      const provider = createProvider(useFallback)
       const contract = new ethers.Contract(STEALTH_GOV_ADDRESS, STEALTH_GOV_ABI, provider)
 
-      // Get total proposal count
-      const count = await contract.proposalCount()
-      const proposalCount = Number(count)
+      console.log(`📋 Fetching proposals using ${useFallback ? 'fallback' : 'primary'} RPC...`)
 
-      console.log('Total proposals:', proposalCount)
+      let proposalIds: number[] = []
 
-      if (proposalCount === 0) {
+      try {
+        // Try event-based fetching first (more efficient)
+        console.log('🔍 Attempting event-based proposal fetching...')
+        const filter = contract.filters.ProposalCreated()
+        const events = await contract.queryFilter(filter, 9407254, 'latest')
+
+        console.log('Found', events.length, 'ProposalCreated events')
+
+        proposalIds = events
+          .map(event => {
+            if ('args' in event && event.args) {
+              console.log('Number(event.args.proposalId):', Number(event.args.proposalId))
+              return Number(event.args.proposalId)
+            }
+            // Parse log manually if needed
+            const parsed = contract.interface.parseLog({
+              topics: [...event.topics],
+              data: event.data,
+            })
+            return parsed ? Number(parsed.args.proposalId) : 0
+          })
+          .filter(id => id > 0)
+      } catch (eventError) {
+        console.log('⚠️ Event-based fetching failed, falling back to proposal count method...')
+        console.error('Event error:', eventError)
+
+        // Fallback: use the original proposal count method
+        try {
+          const count = await contract.proposalCount()
+          const proposalCount = Number(count)
+          console.log('Total proposals from count:', proposalCount)
+
+          proposalIds = Array.from({ length: proposalCount }, (_, i) => i)
+        } catch (countError) {
+          console.error('Both event and count methods failed:', countError)
+          throw new Error('Failed to fetch proposal list')
+        }
+      }
+
+      if (proposalIds.length === 0) {
+        console.log('No proposals found')
         setProposals([])
         setIsLoadingProposals(false)
         return
       }
 
-      // Fetch all proposals
-      const proposalPromises = []
-      for (let i = 0; i < proposalCount; i++) {
-        proposalPromises.push(fetchProposalData(contract, i))
-      }
+      console.log('Proposal IDs to fetch:', proposalIds)
 
-      const fetchedProposals = await Promise.all(proposalPromises)
+      // Fetch proposals sequentially with adaptive delays to avoid rate limiting
+      const fetchedProposals = []
+      for (let i = 0; i < proposalIds.length; i++) {
+        const proposalId = proposalIds[i]
+        try {
+          const proposal = await fetchProposalData(contract, proposalId)
+          if (proposal) {
+            fetchedProposals.push(proposal)
+          }
+
+          // Adaptive delay: longer delays as we make more requests
+          const baseDelay = 200
+          const adaptiveDelay = baseDelay + i * 50 // Increase delay for each subsequent request
+          const maxDelay = 1000
+          const delay = Math.min(adaptiveDelay, maxDelay)
+
+          // Only add delay if there are more proposals to fetch
+          if (i < proposalIds.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, delay))
+          }
+        } catch (error) {
+          console.error(`Failed to fetch proposal ${proposalId}:`, error)
+          // Continue with other proposals even if one fails
+        }
+      }
+      console.log('Fetched', fetchedProposals.length, 'proposals from events')
       setProposals(fetchedProposals.filter(p => p !== null) as ProposalData[])
     } catch (error: any) {
       console.error('Error fetching proposals:', error)
+
+      // If we hit rate limiting and haven't tried fallback yet, try it
+      if (
+        !useFallback &&
+        (error.message?.includes('429') || error.message?.includes('Too Many Requests'))
+      ) {
+        console.log('🔄 Switching to fallback RPC due to rate limiting...')
+        setIsLoadingProposals(false)
+        return fetchProposals(true) // Retry with fallback
+      }
       toast({
         title: 'Error Fetching Proposals',
         description: error.message || 'Failed to load proposals from blockchain',
@@ -190,29 +268,55 @@ export default function VotingPage() {
 
   const fetchProposalData = async (
     contract: ethers.Contract,
-    proposalId: number
+    proposalId: number,
+    retries: number = 3
   ): Promise<ProposalData | null> => {
-    try {
-      const [description, startTime, endTime, forVotes, againstVotes, abstainVotes, executed] =
-        await contract.getProposal(proposalId)
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        console.log(`Fetching proposal ${proposalId} (attempt ${attempt + 1}/${retries + 1})`)
 
-      const isActive = await contract.isProposalActive(proposalId)
+        // Batch both calls together with Promise.all to reduce RPC calls
+        const [
+          [description, startTime, endTime, forVotes, againstVotes, abstainVotes, executed],
+          isActive,
+        ] = await Promise.all([
+          contract.getProposal(proposalId),
+          contract.isProposalActive(proposalId),
+        ])
 
-      return {
-        id: proposalId,
-        description,
-        startTime: Number(startTime),
-        endTime: Number(endTime),
-        forVotes: Number(forVotes),
-        againstVotes: Number(againstVotes),
-        abstainVotes: Number(abstainVotes),
-        executed,
-        isActive,
+        return {
+          id: proposalId,
+          description,
+          startTime: Number(startTime),
+          endTime: Number(endTime),
+          forVotes: Number(forVotes),
+          againstVotes: Number(againstVotes),
+          abstainVotes: Number(abstainVotes),
+          executed,
+          isActive,
+        }
+      } catch (error: any) {
+        if (attempt === retries) {
+          console.error(
+            `Failed to fetch proposal ${proposalId} after ${retries + 1} attempts:`,
+            error
+          )
+          return null
+        }
+
+        // Check if it's a rate limiting error
+        if (error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
+          // Exponential backoff: wait longer on each retry
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000) // Max 5 seconds
+          console.log(`Rate limited on proposal ${proposalId}, retrying in ${delay}ms...`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+        } else {
+          // For other errors, shorter delay
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
       }
-    } catch (error) {
-      console.error(`Error fetching proposal ${proposalId}:`, error)
-      return null
     }
+    return null
   }
 
   const checkSBTStatus = async () => {
@@ -226,7 +330,7 @@ export default function VotingPage() {
     }
 
     try {
-      const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL)
+      const provider = createProvider()
       const sbtContract = new ethers.Contract(sbtAddress, SBT_ABI, provider)
 
       // Check if user has SBT
@@ -248,21 +352,19 @@ export default function VotingPage() {
   const checkEthBalance = async () => {
     if (!user?.ethereumAddress) return
 
-    setIsCheckingBalance(true)
     try {
-      const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL)
+      const provider = createProvider()
       const balance = await provider.getBalance(user.ethereumAddress)
       const balanceInEth = ethers.formatEther(balance)
       setEthBalance(balanceInEth)
 
-      // If balance is 0, trigger faucet
-      if (balance === 0n) {
+      // If balance is less than 0.001 ETH, trigger faucet
+      const minBalance = ethers.parseEther('0.001')
+      if (balance < minBalance) {
         await triggerFaucet()
       }
     } catch (error) {
       console.error('Error checking ETH balance:', error)
-    } finally {
-      setIsCheckingBalance(false)
     }
   }
 
@@ -349,7 +451,7 @@ export default function VotingPage() {
       console.log('SBT contract:', sbtAddress)
 
       // First check if user already has an SBT
-      const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL)
+      const provider = createProvider()
       const sbtContract = new ethers.Contract(sbtAddress, SBT_ABI, provider)
 
       console.log('Checking if user already has SBT...')
@@ -407,7 +509,8 @@ export default function VotingPage() {
       const ethBalance = await provider.getBalance(user.ethereumAddress)
       console.log('ETH balance:', ethers.formatEther(ethBalance))
 
-      if (ethBalance === 0n) {
+      const minRequiredBalance = ethers.parseEther('0.001')
+      if (ethBalance < minRequiredBalance) {
         toast({
           title: 'Insufficient ETH',
           description: 'Waiting for faucet to fund your wallet. Please try again in a moment.',
@@ -582,7 +685,7 @@ export default function VotingPage() {
 
       console.log('Wallet derived:', walletInfo.address)
 
-      const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL)
+      const provider = createProvider()
       const wallet = new ethers.Wallet(walletInfo.privateKey, provider)
 
       // Create contract instance with signer
@@ -654,13 +757,13 @@ export default function VotingPage() {
 
     try {
       console.log('📋 Checking stealth authorization...')
-      
-      const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL)
+
+      const provider = createProvider()
       const contract = new ethers.Contract(STEALTH_GOV_ADDRESS, STEALTH_GOV_ABI, provider)
 
       // Check if authorization already exists
       const existingAuth = await contract.getStealthAuthorization(user.ethereumAddress)
-      
+
       if (existingAuth && existingAuth.isActive) {
         console.log('✅ Stealth authorization already exists')
         return existingAuth.stealthMetaAddress
@@ -670,7 +773,9 @@ export default function VotingPage() {
 
       // First check if user has an SBT token
       if (!hasSBT) {
-        throw new Error('You must have an SBT token to create stealth authorization. Please mint an SBT first.')
+        throw new Error(
+          'You must have an SBT token to create stealth authorization. Please mint an SBT first.'
+        )
       }
 
       console.log('✅ User has SBT, proceeding with authorization...')
@@ -697,15 +802,15 @@ export default function VotingPage() {
       }
 
       const wallet = new ethers.Wallet(walletInfo.privateKey, provider)
-      
+
       // Create authorization signature exactly as the contract expects
       const authMessage = ethers.keccak256(
         ethers.solidityPacked(
-          ["string", "address", "string"],
-          ["I authorize w3pk stealth address ", stealthMetaAddress, " to vote using my SBT tokens"]
+          ['string', 'address', 'string'],
+          ['I authorize w3pk stealth address ', stealthMetaAddress, ' to vote using my SBT tokens']
         )
       )
-      
+
       // Sign the message hash (contract will add ethereum signed message prefix)
       const authSignature = await wallet.signMessage(ethers.getBytes(authMessage))
 
@@ -714,7 +819,7 @@ export default function VotingPage() {
 
       // Call createStealthAuthorization on the contract
       const contractWithSigner = new ethers.Contract(STEALTH_GOV_ADDRESS, STEALTH_GOV_ABI, wallet)
-      
+
       toast({
         title: 'Creating Authorization...',
         description: 'Linking your SBT to stealth voting capability',
@@ -750,15 +855,14 @@ export default function VotingPage() {
 
       console.log('✅ Stealth authorization created successfully')
       return stealthMetaAddress
-
     } catch (error: any) {
       console.error('Error creating stealth authorization:', error)
-      
+
       if (error.message?.includes('AuthorizationAlreadyExists')) {
         console.log('Authorization already exists, continuing...')
         return null
       }
-      
+
       throw new Error(`Failed to create stealth authorization: ${error.message}`)
     }
   }
@@ -782,7 +886,7 @@ export default function VotingPage() {
 
       // First, ensure stealth authorization exists and get the authorized meta address
       const authorizedMetaAddress = await ensureStealthAuthorization()
-      
+
       if (!authorizedMetaAddress) {
         throw new Error('Failed to get authorized stealth meta address')
       }
@@ -790,31 +894,32 @@ export default function VotingPage() {
       // Now generate a stealth address that will derive to our authorized meta address
       // The contract uses: keccak256(abi.encodePacked(stealthAddr, "meta"))
       // We need to find a stealth address where this derivation equals our authorized meta address
-      
-      let stealthAddress: string
-      let stealthPrivateKey: string
+
+      let stealthAddress: string | undefined
+      let stealthPrivateKey: string | undefined
       let attempts = 0
       const maxAttempts = 1000
-      
+
       // Search for a stealth address that derives the correct meta address
       console.log('🔍 Searching for stealth address that maps to authorized meta address...')
       console.log('Target meta address:', authorizedMetaAddress)
-      
+
       do {
         const randomSeed = ethers.randomBytes(32)
         const tempWallet = new ethers.Wallet(ethers.hexlify(randomSeed))
         const candidateAddress = tempWallet.address
-        
+
         const derivedMetaAddress = ethers.getAddress(
-          '0x' + ethers.keccak256(
-            ethers.solidityPacked(['address', 'string'], [candidateAddress, 'meta'])
-          ).slice(-40)
+          '0x' +
+            ethers
+              .keccak256(ethers.solidityPacked(['address', 'string'], [candidateAddress, 'meta']))
+              .slice(-40)
         )
-        
+
         if (attempts % 100 === 0) {
           console.log(`Attempt ${attempts}: ${candidateAddress} -> ${derivedMetaAddress}`)
         }
-        
+
         if (derivedMetaAddress.toLowerCase() === authorizedMetaAddress.toLowerCase()) {
           stealthAddress = candidateAddress
           stealthPrivateKey = ethers.hexlify(randomSeed)
@@ -823,37 +928,42 @@ export default function VotingPage() {
           console.log('✅ Derives to meta:', derivedMetaAddress)
           break
         }
-        
+
         attempts++
       } while (attempts < maxAttempts)
-      
+
       if (!stealthAddress) {
         console.log('❌ Could not find matching stealth address after', maxAttempts, 'attempts')
         console.log('🔄 Creating fresh stealth address and updating authorization...')
-        
+
         // Generate a fresh stealth address for this vote
+        if (!user?.ethereumAddress) {
+          throw new Error('User not authenticated')
+        }
+
         const voteSeed = ethers.keccak256(
           ethers.solidityPacked(
-            ['address', 'uint256', 'uint256', 'string'], 
+            ['address', 'uint256', 'uint256', 'string'],
             [user.ethereumAddress, proposalId, support, 'vote-stealth']
           )
         )
         const stealthWallet = new ethers.Wallet(voteSeed)
         stealthAddress = stealthWallet.address
         stealthPrivateKey = voteSeed
-        
+
         // Calculate what meta address the contract will derive
         const contractDerivedMeta = ethers.getAddress(
-          '0x' + ethers.keccak256(
-            ethers.solidityPacked(['address', 'string'], [stealthAddress, 'meta'])
-          ).slice(-40)
+          '0x' +
+            ethers
+              .keccak256(ethers.solidityPacked(['address', 'string'], [stealthAddress, 'meta']))
+              .slice(-40)
         )
-        
+
         console.log('Generated stealth address:', stealthAddress)
         console.log('Contract will derive meta address:', contractDerivedMeta)
         console.log('Need to update authorization from:', authorizedMetaAddress)
         console.log('To:', contractDerivedMeta)
-        
+
         // We need to update the authorization for this vote
         try {
           const { createWeb3Passkey } = await import('w3pk')
@@ -867,10 +977,10 @@ export default function VotingPage() {
             throw new Error('Failed to derive wallet for authorization update')
           }
 
-          const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL)
+          const provider = createProvider()
           const wallet = new ethers.Wallet(walletInfo.privateKey, provider)
           const contract = new ethers.Contract(STEALTH_GOV_ADDRESS, STEALTH_GOV_ABI, wallet)
-          
+
           toast({
             title: 'Updating Authorization... 🔄',
             description: 'Revoking old authorization and creating new one for this vote',
@@ -889,18 +999,25 @@ export default function VotingPage() {
           console.log('🆕 Creating new authorization...')
           const authMessage = ethers.keccak256(
             ethers.solidityPacked(
-              ["string", "address", "string"],
-              ["I authorize w3pk stealth address ", contractDerivedMeta, " to vote using my SBT tokens"]
+              ['string', 'address', 'string'],
+              [
+                'I authorize w3pk stealth address ',
+                contractDerivedMeta,
+                ' to vote using my SBT tokens',
+              ]
             )
           )
-          
+
           const authSignature = await wallet.signMessage(ethers.getBytes(authMessage))
 
-          const createAuthTx = await contract.createStealthAuthorization(contractDerivedMeta, authSignature)
+          const createAuthTx = await contract.createStealthAuthorization(
+            contractDerivedMeta,
+            authSignature
+          )
           await createAuthTx.wait()
-          
+
           console.log('✅ New authorization created for meta address:', contractDerivedMeta)
-          
+
           toast({
             title: 'Authorization Updated! ✅',
             description: 'Successfully updated stealth authorization for this vote',
@@ -908,10 +1025,11 @@ export default function VotingPage() {
             duration: 3000,
             isClosable: true,
           })
-          
-        } catch (authError) {
+        } catch (authError: any) {
           console.error('Failed to update authorization:', authError)
-          throw new Error(`Failed to update stealth authorization: ${authError.message}`)
+          throw new Error(
+            `Failed to update stealth authorization: ${authError?.message || 'Unknown error'}`
+          )
         }
       }
 
@@ -930,27 +1048,34 @@ export default function VotingPage() {
       const stealthResult = {
         stealthAddress: stealthAddress!,
         stealthPrivateKey: stealthPrivateKey!,
-        ephemeralPublicKey: w3pkStealthResult.ephemeralPublicKey
+        ephemeralPublicKey: w3pkStealthResult.ephemeralPublicKey,
       }
-      
+
       console.log('Final stealth address:', stealthResult.stealthAddress)
-      console.log('Contract will derive meta address:', ethers.getAddress(
-        '0x' + ethers.keccak256(
-          ethers.solidityPacked(['address', 'string'], [stealthResult.stealthAddress, 'meta'])
-        ).slice(-40)
-      ))
+      console.log(
+        'Contract will derive meta address:',
+        ethers.getAddress(
+          '0x' +
+            ethers
+              .keccak256(
+                ethers.solidityPacked(['address', 'string'], [stealthResult.stealthAddress, 'meta'])
+              )
+              .slice(-40)
+        )
+      )
       console.log('Our authorized meta address:', authorizedMetaAddress)
 
-      const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL)
+      const provider = createProvider()
 
       // Check if stealth address needs funding
       const stealthBalance = await provider.getBalance(stealthResult.stealthAddress)
       console.log('Stealth address balance:', ethers.formatEther(stealthBalance), 'ETH')
 
-      // Fund stealth address if it has 0 balance
-      if (stealthBalance === 0n) {
-        console.log('💰 Stealth address has 0 ETH, triggering faucet...')
-        
+      // Fund stealth address if it has less than 0.001 ETH
+      const minStealthBalance = ethers.parseEther('0.001')
+      if (stealthBalance < minStealthBalance) {
+        console.log('💰 Stealth address has insufficient ETH, triggering faucet...')
+
         try {
           const faucetResponse = await fetch('/api/faucet', {
             method: 'POST',
@@ -959,7 +1084,7 @@ export default function VotingPage() {
             },
             body: JSON.stringify({ address: stealthResult.stealthAddress }),
           })
-          
+
           if (faucetResponse.ok) {
             const faucetData = await faucetResponse.json()
             console.log('✅ Faucet sent to stealth address:', faucetData.txHash)
@@ -970,24 +1095,28 @@ export default function VotingPage() {
               duration: 5000,
               isClosable: true,
             })
-            
+
             // Wait for the faucet transaction to be confirmed
             console.log('⏳ Waiting for faucet transaction confirmation...')
-            
+
             // Wait for the transaction to be mined
-            const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL)
-            
+            const provider = createProvider()
+
             try {
               const faucetTxReceipt = await provider.waitForTransaction(faucetData.txHash, 1, 30000) // Wait up to 30 seconds
               if (faucetTxReceipt) {
                 console.log('✅ Faucet transaction confirmed:', faucetTxReceipt.hash)
-                
+
                 // Check balance again to confirm funding
                 const newBalance = await provider.getBalance(stealthResult.stealthAddress)
-                console.log('💰 New stealth address balance:', ethers.formatEther(newBalance), 'ETH')
-                
-                if (newBalance === 0n) {
-                  throw new Error('Stealth address still has 0 balance after faucet')
+                console.log(
+                  '💰 New stealth address balance:',
+                  ethers.formatEther(newBalance),
+                  'ETH'
+                )
+
+                if (newBalance < minStealthBalance) {
+                  throw new Error('Stealth address still has insufficient balance after faucet')
                 }
               } else {
                 throw new Error('Faucet transaction not confirmed within timeout')
@@ -997,7 +1126,8 @@ export default function VotingPage() {
               // Continue anyway, but warn user
               toast({
                 title: 'Faucet Warning ⚠️',
-                description: 'Could not confirm faucet transaction. Vote may fail due to insufficient gas.',
+                description:
+                  'Could not confirm faucet transaction. Vote may fail due to insufficient gas.',
                 status: 'warning',
                 duration: 5000,
                 isClosable: true,
@@ -1023,16 +1153,18 @@ export default function VotingPage() {
 
       // Create stealth wallet from w3pk generated stealth address
       const stealthWallet = new ethers.Wallet(stealthResult.stealthPrivateKey, provider)
-      
+
       console.log('Stealth wallet created:', stealthWallet.address)
-      console.log('Stealth wallet matches generated address:', 
-        stealthWallet.address.toLowerCase() === stealthResult.stealthAddress.toLowerCase())
+      console.log(
+        'Stealth wallet matches generated address:',
+        stealthWallet.address.toLowerCase() === stealthResult.stealthAddress.toLowerCase()
+      )
 
       const userSbtTokenId = sbtTokenId || 1
 
       // Create stealth proof signature exactly as contract expects
       console.log('📝 Creating stealth proof signature...')
-      
+
       // This must match the contract's verification: keccak256(abi.encodePacked("Stealth ", stealthAddr, " votes with SBT ", sbtTokenId))
       const voteMessage = ethers.keccak256(
         ethers.solidityPacked(
@@ -1040,14 +1172,20 @@ export default function VotingPage() {
           ['Stealth ', stealthResult.stealthAddress, ' votes with SBT ', userSbtTokenId]
         )
       )
-      
+
       // Sign with the stealth wallet's private key (contract will add ethereum signed message prefix)
       const stealthProof = await stealthWallet.signMessage(ethers.getBytes(voteMessage))
 
       console.log('Generated proof details:')
       console.log('- Stealth address:', stealthResult.stealthAddress)
       console.log('- Ephemeral pubkey:', stealthResult.ephemeralPublicKey)
-      console.log('- Stealth proof length:', stealthProof.length, 'chars (', (stealthProof.length - 2) / 2, 'bytes)')
+      console.log(
+        '- Stealth proof length:',
+        stealthProof.length,
+        'chars (',
+        (stealthProof.length - 2) / 2,
+        'bytes)'
+      )
       console.log('- SBT Token ID:', userSbtTokenId)
       console.log('- Vote message hash:', voteMessage)
 
@@ -1060,23 +1198,46 @@ export default function VotingPage() {
       })
 
       const contract = new ethers.Contract(STEALTH_GOV_ADDRESS, STEALTH_GOV_ABI, stealthWallet)
+      
+      // Check if this SBT token has already been used for this proposal
+      const readOnlyContract = new ethers.Contract(STEALTH_GOV_ADDRESS, STEALTH_GOV_ABI, provider)
+      const sbtAlreadyUsed = await readOnlyContract.isSBTTokenUsed(proposalId, userSbtTokenId)
+      
+      console.log('SBT Token', userSbtTokenId, 'already used for proposal', proposalId, ':', sbtAlreadyUsed)
 
       toast({
-        title: 'Casting Vote...',
-        description: 'Sending anonymous vote to blockchain...',
+        title: sbtAlreadyUsed ? 'Changing Vote...' : 'Casting Vote...',
+        description: sbtAlreadyUsed ? 
+          'Updating your anonymous vote...' : 
+          'Sending anonymous vote to blockchain...',
         status: 'info',
         duration: 5000,
         isClosable: true,
       })
 
-      // Cast vote using w3pk ephemeral public key
-      const tx = await contract.castStealthVote(
-        proposalId,
-        support,
-        stealthResult.ephemeralPublicKey,
-        stealthProof,
-        userSbtTokenId
-      )
+      // Use appropriate function based on whether SBT has been used
+      let tx
+      if (sbtAlreadyUsed) {
+        // Use changeStealthVote for subsequent votes
+        console.log('Using changeStealthVote for SBT token', userSbtTokenId)
+        tx = await contract.changeStealthVote(
+          proposalId,
+          support,
+          stealthResult.ephemeralPublicKey,
+          stealthProof,
+          userSbtTokenId
+        )
+      } else {
+        // Use castStealthVote for first vote
+        console.log('Using castStealthVote for SBT token', userSbtTokenId)
+        tx = await contract.castStealthVote(
+          proposalId,
+          support,
+          stealthResult.ephemeralPublicKey,
+          stealthProof,
+          userSbtTokenId
+        )
+      }
 
       console.log('Vote transaction sent:', tx.hash)
 
@@ -1091,8 +1252,10 @@ export default function VotingPage() {
       await tx.wait()
 
       toast({
-        title: 'Vote Cast Successfully! ✅',
-        description: 'Your vote has been recorded anonymously',
+        title: sbtAlreadyUsed ? 'Vote Changed Successfully! ✅' : 'Vote Cast Successfully! ✅',
+        description: sbtAlreadyUsed ? 
+          'Your vote has been updated anonymously' : 
+          'Your vote has been recorded anonymously',
         status: 'success',
         duration: 5000,
         isClosable: true,
@@ -1236,7 +1399,7 @@ export default function VotingPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={fetchProposals}
+              onClick={() => fetchProposals()}
               isLoading={isLoadingProposals}
             >
               Refresh
