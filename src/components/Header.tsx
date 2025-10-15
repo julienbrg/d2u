@@ -97,7 +97,7 @@ export default function Header() {
             <Flex align="center" gap={3}>
               <Link href="/">
                 <Heading as="h3" size="md" textAlign="center">
-                  D2U
+                  Stealth Gov
                 </Heading>
               </Link>
             </Flex>
@@ -164,14 +164,25 @@ export default function Header() {
                 size="sm"
               />
               <MenuList minWidth="180px" px={2}>
-                <Link href="/upload" color="white">
+                <Link href="/voting" color="white">
                   <MenuItem fontSize="md" px={4} py={3}>
-                    Upload files
+                    Voting
                   </MenuItem>
                 </Link>
+
                 <Link href="/web3" color="white">
                   <MenuItem fontSize="md" px={4} py={3}>
                     Sign a message
+                  </MenuItem>
+                </Link>
+                <Link href="/test" color="white">
+                  <MenuItem fontSize="md" px={4} py={3}>
+                    Test
+                  </MenuItem>
+                </Link>
+                <Link href="/upload" color="white">
+                  <MenuItem fontSize="md" px={4} py={3}>
+                    Upload files
                   </MenuItem>
                 </Link>
               </MenuList>
