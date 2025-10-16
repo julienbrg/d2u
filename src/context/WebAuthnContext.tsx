@@ -79,9 +79,24 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
       }
       setUser(userData)
       setIsAuthenticated(true)
+      
+      // Store authentication state in localStorage with expiration (24 hours)
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const authStateData = {
+          isAuthenticated: true,
+          user: userData,
+          expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 hours from now
+        }
+        localStorage.setItem('w3pk_auth_state', JSON.stringify(authStateData))
+      }
     } else {
       setUser(null)
       setIsAuthenticated(false)
+      
+      // Clear stored authentication state
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.removeItem('w3pk_auth_state')
+      }
     }
   }, [])
 
@@ -100,8 +115,52 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
     [handleAuthStateChanged]
   )
 
-  // w3pk handles auth state changes via onAuthStateChanged callback above
-  // No manual useEffect needed since w3pk manages its own state
+  // Check for existing authentication state on mount
+  useEffect(() => {
+    const checkExistingAuth = async () => {
+      if (!isMounted || !w3pk) return
+      
+      try {
+        console.log('Checking for existing authentication state...')
+        
+        // Check if w3pk already has an authenticated user
+        if (w3pk.isAuthenticated && w3pk.user) {
+          console.log('Found existing w3pk authentication, restoring state...')
+          handleAuthStateChanged(true, w3pk.user)
+          return
+        }
+        
+        // Check for stored authentication state in localStorage (if available)
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const storedAuthState = localStorage.getItem('w3pk_auth_state')
+          if (storedAuthState) {
+            try {
+              const authData = JSON.parse(storedAuthState)
+              if (authData.isAuthenticated && authData.user && authData.expiresAt > Date.now()) {
+                console.log('Found valid stored authentication, restoring...')
+                handleAuthStateChanged(true, authData.user)
+                return
+              } else {
+                console.log('Stored authentication expired, clearing...')
+                localStorage.removeItem('w3pk_auth_state')
+              }
+            } catch (parseError) {
+              console.error('Failed to parse stored auth state:', parseError)
+              localStorage.removeItem('w3pk_auth_state')
+            }
+          }
+        }
+        
+        console.log('No existing authentication found')
+        handleAuthStateChanged(false)
+      } catch (error) {
+        console.error('Error checking authentication state:', error)
+        handleAuthStateChanged(false)
+      }
+    }
+
+    checkExistingAuth()
+  }, [isMounted, w3pk, handleAuthStateChanged])
 
   const register = async (username: string) => {
     try {
