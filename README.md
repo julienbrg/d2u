@@ -1,12 +1,14 @@
 # D2U
 
-Showcases the following techniques:
+Sybil-proof, coercion-resistant, privacy-preserving and passkey-friendly onchain voting system. The project integrates with [w3pk](https://github.com/w3hc/w3pk) which allows everyone to easily use passkeys to sign transactions, manage stealth addresses, ZK proofs and more.
 
-- [Stealth Gov](https://github.com/w3hc/stealth-gov)
-- [w3pk](https://github.com/w3hc/w3pk) SDK
-- [NestJS WebAuthn](https://github.com/julienbrg/nestjs-webauthn).
+[**Live demo**](http://d2u.w3hc.org/voting)
 
-D2U is using [W3PK](https://github.com/w3hc/w3pk), the WebAuthn SDK for passwordless authentication and encrypted file storage with optional zero-knowledge humanity proofs.
+- [w3pk](https://github.com/w3hc/w3pk) (brand new SDK)
+- [WebAuthn API](https://github.com/julienbrg/nestjs-webauthn) (implements WebAuthn workflow)
+- [Stealth Gov contracts](https://github.com/w3hc/stealth-gov)
+
+[Human Passport](https://passport.human.tech/) makes the system resistant to Sybil attacks.
 
 ## Install
 
@@ -22,16 +24,7 @@ Create a `.env` file:
 cp .env.template .env
 ```
 
-Add your own keys in the `.env` file:
-
-```env
-NEXT_PUBLIC_PROJECT_ID=88888
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_WEBAUTHN_API_URL=http://webauthn.w3hc.org
-FAUCET_PRIVATE_KEY=
-```
-
-Then start the development server:
+Add your own keys in the `.env` file then:
 
 ```bash
 pnpm dev
