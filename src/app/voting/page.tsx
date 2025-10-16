@@ -924,10 +924,10 @@ export default function VotingPage() {
       <VStack spacing={8} align="stretch">
         <Box textAlign="center">
           <Heading as="h1" size="xl" mb={4}>
-            🎭 ZK Stealth Voting
+            Stealth Gov
           </Heading>
           <Text color="gray.400" mb={2}>
-            Zero-Knowledge Proof Based DAO Governance
+            ZK Proof Based Human DAO
           </Text>
         </Box>
 
