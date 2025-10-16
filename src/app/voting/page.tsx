@@ -255,33 +255,12 @@ export default function VotingPage() {
         let proposalIds: number[] = []
 
         try {
-          const filter = contract.filters.ProposalCreated()
-          const events = await contract.queryFilter(filter, 9407254, 'latest')
-          console.log('Found', events.length, 'ProposalCreated events')
-
-          proposalIds = events
-            .map(event => {
-              if ('args' in event && event.args) {
-                return Number(event.args.proposalId)
-              }
-              const parsed = contract.interface.parseLog({
-                topics: [...event.topics],
-                data: event.data,
-              })
-              return parsed ? Number(parsed.args.proposalId) : -1
-            })
-            .filter(id => id >= 0)
-
-          console.log('Final proposal IDs:', proposalIds)
-        } catch (eventError) {
-          console.log('⚠️ Event-based fetching failed, falling back to proposal count...')
-          try {
-            const count = await contract.proposalCount()
-            const proposalCount = Number(count)
-            proposalIds = Array.from({ length: proposalCount }, (_, i) => i)
-          } catch (countError) {
-            throw new Error('Failed to fetch proposal list')
-          }
+          const count = await contract.proposalCount()
+          const proposalCount = Number(count)
+          proposalIds = Array.from({ length: proposalCount }, (_, i) => i)
+          console.log('Found', proposalCount, 'proposals')
+        } catch (countError) {
+          throw new Error('Failed to fetch proposal count')
         }
 
         if (proposalIds.length === 0) {
@@ -410,8 +389,29 @@ export default function VotingPage() {
     }
   }, [user?.ethereumAddress, triggerFaucet])
 
+  // RPC health check on mount
+  const checkRPCHealth = useCallback(async () => {
+    try {
+      const provider = createProvider()
+      const blockNumber = await provider.getBlockNumber()
+      const network = await provider.getNetwork()
+      console.log(`🌐 RPC Health Check: Block ${blockNumber}, Chain ID ${network.chainId}`)
+    } catch (error) {
+      console.warn(`⚠️ Primary RPC health check failed:`, error)
+      try {
+        const fallbackProvider = createProvider(true)
+        const blockNumber = await fallbackProvider.getBlockNumber()
+        const network = await fallbackProvider.getNetwork()
+        console.log(`🌐 Fallback RPC Health Check: Block ${blockNumber}, Chain ID ${network.chainId}`)
+      } catch (fallbackError) {
+        console.error(`❌ Both RPC endpoints failed:`, fallbackError)
+      }
+    }
+  }, [])
+
   // Fetch data on mount - Fixed with useCallback dependencies
   useEffect(() => {
+    checkRPCHealth()
     fetchProposals()
     if (isAuthenticated && user?.ethereumAddress) {
       checkEthBalance()
@@ -421,6 +421,7 @@ export default function VotingPage() {
   }, [
     isAuthenticated,
     user?.ethereumAddress,
+    checkRPCHealth,
     fetchProposals,
     checkEthBalance,
     checkSBTStatus,
