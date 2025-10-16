@@ -33,6 +33,8 @@ interface WebAuthnContextType {
     ephemeralPublicKey: string
   } | null>
   getStealthKeys: () => Promise<StealthKeys | null>
+  deriveWallet: (index?: number) => Promise<{ address: string; privateKey: string } | null>
+  proveNFTOwnership: (input: any) => Promise<any>
 }
 
 const WebAuthnContext = createContext<WebAuthnContextType>({
@@ -45,6 +47,8 @@ const WebAuthnContext = createContext<WebAuthnContextType>({
   signMessage: async (message: string) => null,
   generateStealthAddress: async () => null,
   getStealthKeys: async () => null,
+  deriveWallet: async (index?: number) => null,
+  proveNFTOwnership: async (input: any) => null,
 })
 
 export const useWebAuthn = () => useContext(WebAuthnContext)
@@ -87,6 +91,9 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
       createWeb3Passkey({
         apiBaseUrl: process.env.NEXT_PUBLIC_WEBAUTHN_API_URL || 'https://webauthn.w3hc.org',
         stealthAddresses: {}, // Enable stealth address generation
+        zkProofs: {
+          enabledProofs: ['nft'],
+        },
         debug: process.env.NODE_ENV === 'development',
         onAuthStateChanged: handleAuthStateChanged,
       }),
@@ -102,8 +109,11 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
       console.log('=== Starting Registration with w3pk ===')
 
       // Use w3pk for registration
-      const result = await w3pk.register({ username })
-      console.log('Registration successful, address:', result.ethereumAddress)
+      await w3pk.register({ 
+        username, 
+        ethereumAddress: '0x0000000000000000000000000000000000000000' // w3pk will generate its own wallet
+      })
+      console.log('Registration successful, address:', w3pk.walletAddress)
 
       toast({
         title: 'Registration Successful! 🎉',
@@ -113,17 +123,15 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
         isClosable: true,
       })
 
-      // If a mnemonic was generated, show backup warning
-      if (result.mnemonic) {
-        toast({
-          title: '🚨 BACKUP YOUR RECOVERY PHRASE',
-          description:
-            'Save your 12-word recovery phrase in a safe place. This is your only backup!',
-          status: 'warning',
-          duration: 10000,
-          isClosable: true,
-        })
-      }
+      // Show backup warning for new registrations
+      toast({
+        title: '🚨 BACKUP YOUR RECOVERY PHRASE',
+        description:
+          'Save your 12-word recovery phrase in a safe place. This is your only backup!',
+        status: 'warning',
+        duration: 10000,
+        isClosable: true,
+      })
     } catch (error: any) {
       console.error('Registration failed:', error)
       toast({
@@ -149,7 +157,7 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
       console.log('Login successful, user:', result.user?.username)
 
       // Check if wallet is available
-      const hasWallet = await w3pk.hasWallet()
+      const hasWallet = w3pk.isAuthenticated && w3pk.walletAddress
 
       toast({
         title: 'Login Successful! ✅',
@@ -299,6 +307,47 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
     }
   }
 
+  const deriveWallet = async (index: number = 0): Promise<{ address: string; privateKey: string } | null> => {
+    try {
+      if (!w3pk.isAuthenticated) {
+        throw new Error('Not authenticated. Please login first.')
+      }
+      return await w3pk.deriveWallet(index)
+    } catch (error: any) {
+      console.error('Failed to derive wallet:', error)
+      toast({
+        title: 'Failed to derive wallet',
+        description: error.message || 'An error occurred while deriving wallet',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      })
+      return null
+    }
+  }
+
+  const proveNFTOwnership = async (input: any): Promise<any> => {
+    try {
+      if (!w3pk.isAuthenticated) {
+        throw new Error('Not authenticated. Please login first.')
+      }
+      if (!w3pk.zk) {
+        throw new Error('ZK proofs not enabled.')
+      }
+      return await w3pk.zk.proveNFTOwnership(input)
+    } catch (error: any) {
+      console.error('Failed to generate NFT ownership proof:', error)
+      toast({
+        title: 'Failed to generate proof',
+        description: error.message || 'An error occurred while generating ZK proof',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      })
+      return null
+    }
+  }
+
   return (
     <WebAuthnContext.Provider
       value={{
@@ -311,6 +360,8 @@ export const WebAuthnProvider: React.FC<WebAuthnProviderProps> = ({ children }) 
         signMessage,
         generateStealthAddress,
         getStealthKeys,
+        deriveWallet,
+        proveNFTOwnership,
       }}
     >
       {children}

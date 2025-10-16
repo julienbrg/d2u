@@ -23,6 +23,9 @@ importers:
       '@simplewebauthn/browser':
         specifier: ^13.1.2
         version: 13.2.2
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7
       ethers:
         specifier: ^6.13.4
         version: 6.15.0
@@ -41,9 +44,12 @@ importers:
       react-icons:
         specifier: ^5.4.0
         version: 5.5.0(react@19.2.0)
+      snarkjs:
+        specifier: ^0.7.5
+        version: 0.7.5
       w3pk:
-        specifier: ^0.4.1
-        version: 0.4.1(ethers@6.15.0)
+        specifier: ^0.5.1
+        version: 0.5.1(ethers@6.15.0)
     devDependencies:
       '@types/node':
         specifier: ^24.0.13
@@ -2238,8 +2244,8 @@ packages:
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
-  w3pk@0.4.1:
-    resolution: {integrity: sha512-CiThNn2PSAYp2nvZHzY64sHwnC3mgNUf7Axzr0nOer5KsSMg+dxilZ5Z+E1fnt0VDC1MRi0373uWLoi24Qqqmw==}
+  w3pk@0.5.1:
+    resolution: {integrity: sha512-wQyo2jYvfPSveFPpY18uLmB8KY745VwDQtI7nHSCDZp4UwyKjle0hzN4RxfPlGYhv/vCWSs+/mFMacTQYwSBfg==}
     peerDependencies:
       ethers: ^6.0.0
 
@@ -2591,7 +2597,6 @@ snapshots:
       '@ethersproject/logger': 5.8.0
       '@ethersproject/properties': 5.8.0
       '@ethersproject/strings': 5.8.0
-    optional: true
 
   '@ethersproject/abstract-provider@5.8.0':
     dependencies:
@@ -2602,7 +2607,6 @@ snapshots:
       '@ethersproject/properties': 5.8.0
       '@ethersproject/transactions': 5.8.0
       '@ethersproject/web': 5.8.0
-    optional: true
 
   '@ethersproject/abstract-signer@5.8.0':
     dependencies:
@@ -2611,7 +2615,6 @@ snapshots:
       '@ethersproject/bytes': 5.8.0
       '@ethersproject/logger': 5.8.0
       '@ethersproject/properties': 5.8.0
-    optional: true
 
   '@ethersproject/address@5.8.0':
     dependencies:
@@ -2620,35 +2623,29 @@ snapshots:
       '@ethersproject/keccak256': 5.8.0
       '@ethersproject/logger': 5.8.0
       '@ethersproject/rlp': 5.8.0
-    optional: true
 
   '@ethersproject/base64@5.8.0':
     dependencies:
       '@ethersproject/bytes': 5.8.0
-    optional: true
 
   '@ethersproject/basex@5.8.0':
     dependencies:
       '@ethersproject/bytes': 5.8.0
       '@ethersproject/properties': 5.8.0
-    optional: true
 
   '@ethersproject/bignumber@5.8.0':
     dependencies:
       '@ethersproject/bytes': 5.8.0
       '@ethersproject/logger': 5.8.0
       bn.js: 5.2.2
-    optional: true
 
   '@ethersproject/bytes@5.8.0':
     dependencies:
       '@ethersproject/logger': 5.8.0
-    optional: true
 
   '@ethersproject/constants@5.8.0':
     dependencies:
       '@ethersproject/bignumber': 5.8.0
-    optional: true
 
   '@ethersproject/contracts@5.8.0':
     dependencies:
@@ -2662,7 +2659,6 @@ snapshots:
       '@ethersproject/logger': 5.8.0
       '@ethersproject/properties': 5.8.0
       '@ethersproject/transactions': 5.8.0
-    optional: true
 
   '@ethersproject/hash@5.8.0':
     dependencies:
@@ -2675,7 +2671,6 @@ snapshots:
       '@ethersproject/logger': 5.8.0
       '@ethersproject/properties': 5.8.0
       '@ethersproject/strings': 5.8.0
-    optional: true
 
   '@ethersproject/hdnode@5.8.0':
     dependencies:
@@ -2691,7 +2686,6 @@ snapshots:
       '@ethersproject/strings': 5.8.0
       '@ethersproject/transactions': 5.8.0
       '@ethersproject/wordlists': 5.8.0
-    optional: true
 
   '@ethersproject/json-wallets@5.8.0':
     dependencies:
@@ -2708,32 +2702,26 @@ snapshots:
       '@ethersproject/transactions': 5.8.0
       aes-js: 3.0.0
       scrypt-js: 3.0.1
-    optional: true
 
   '@ethersproject/keccak256@5.8.0':
     dependencies:
       '@ethersproject/bytes': 5.8.0
       js-sha3: 0.8.0
-    optional: true
 
-  '@ethersproject/logger@5.8.0':
-    optional: true
+  '@ethersproject/logger@5.8.0': {}
 
   '@ethersproject/networks@5.8.0':
     dependencies:
       '@ethersproject/logger': 5.8.0
-    optional: true
 
   '@ethersproject/pbkdf2@5.8.0':
     dependencies:
       '@ethersproject/bytes': 5.8.0
       '@ethersproject/sha2': 5.8.0
-    optional: true
 
   '@ethersproject/properties@5.8.0':
     dependencies:
       '@ethersproject/logger': 5.8.0
-    optional: true
 
   '@ethersproject/providers@5.8.0':
     dependencies:
@@ -2760,26 +2748,22 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
-    optional: true
 
   '@ethersproject/random@5.8.0':
     dependencies:
       '@ethersproject/bytes': 5.8.0
       '@ethersproject/logger': 5.8.0
-    optional: true
 
   '@ethersproject/rlp@5.8.0':
     dependencies:
       '@ethersproject/bytes': 5.8.0
       '@ethersproject/logger': 5.8.0
-    optional: true
 
   '@ethersproject/sha2@5.8.0':
     dependencies:
       '@ethersproject/bytes': 5.8.0
       '@ethersproject/logger': 5.8.0
       hash.js: 1.1.7
-    optional: true
 
   '@ethersproject/signing-key@5.8.0':
     dependencies:
@@ -2789,7 +2773,6 @@ snapshots:
       bn.js: 5.2.2
       elliptic: 6.6.1
       hash.js: 1.1.7
-    optional: true
 
   '@ethersproject/solidity@5.8.0':
     dependencies:
@@ -2799,14 +2782,12 @@ snapshots:
       '@ethersproject/logger': 5.8.0
       '@ethersproject/sha2': 5.8.0
       '@ethersproject/strings': 5.8.0
-    optional: true
 
   '@ethersproject/strings@5.8.0':
     dependencies:
       '@ethersproject/bytes': 5.8.0
       '@ethersproject/constants': 5.8.0
       '@ethersproject/logger': 5.8.0
-    optional: true
 
   '@ethersproject/transactions@5.8.0':
     dependencies:
@@ -2819,14 +2800,12 @@ snapshots:
       '@ethersproject/properties': 5.8.0
       '@ethersproject/rlp': 5.8.0
       '@ethersproject/signing-key': 5.8.0
-    optional: true
 
   '@ethersproject/units@5.8.0':
     dependencies:
       '@ethersproject/bignumber': 5.8.0
       '@ethersproject/constants': 5.8.0
       '@ethersproject/logger': 5.8.0
-    optional: true
 
   '@ethersproject/wallet@5.8.0':
     dependencies:
@@ -2845,7 +2824,6 @@ snapshots:
       '@ethersproject/signing-key': 5.8.0
       '@ethersproject/transactions': 5.8.0
       '@ethersproject/wordlists': 5.8.0
-    optional: true
 
   '@ethersproject/web@5.8.0':
     dependencies:
@@ -2854,7 +2832,6 @@ snapshots:
       '@ethersproject/logger': 5.8.0
       '@ethersproject/properties': 5.8.0
       '@ethersproject/strings': 5.8.0
-    optional: true
 
   '@ethersproject/wordlists@5.8.0':
     dependencies:
@@ -2863,7 +2840,6 @@ snapshots:
       '@ethersproject/logger': 5.8.0
       '@ethersproject/properties': 5.8.0
       '@ethersproject/strings': 5.8.0
-    optional: true
 
   '@humanfs/core@0.19.1': {}
 
@@ -2876,14 +2852,12 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
-  '@iden3/bigarray@0.0.2':
-    optional: true
+  '@iden3/bigarray@0.0.2': {}
 
   '@iden3/binfileutils@0.0.12':
     dependencies:
       fastfile: 0.0.20
       ffjavascript: 0.3.1
-    optional: true
 
   '@img/colour@1.0.0':
     optional: true
@@ -3258,8 +3232,7 @@ snapshots:
 
   acorn@8.15.0: {}
 
-  aes-js@3.0.0:
-    optional: true
+  aes-js@3.0.0: {}
 
   aes-js@4.0.0-beta.5: {}
 
@@ -3353,8 +3326,7 @@ snapshots:
 
   async-function@1.0.0: {}
 
-  async@3.2.6:
-    optional: true
+  async@3.2.6: {}
 
   available-typed-arrays@1.0.7:
     dependencies:
@@ -3364,8 +3336,7 @@ snapshots:
 
   axobject-query@4.1.0: {}
 
-  b4a@1.7.3:
-    optional: true
+  b4a@1.7.3: {}
 
   babel-plugin-macros@3.1.0:
     dependencies:
@@ -3375,8 +3346,7 @@ snapshots:
 
   balanced-match@1.0.2: {}
 
-  bech32@1.1.4:
-    optional: true
+  bech32@1.1.4: {}
 
   bfj@7.1.0:
     dependencies:
@@ -3385,14 +3355,12 @@ snapshots:
       hoopy: 0.1.4
       jsonpath: 1.1.1
       tryer: 1.0.1
-    optional: true
 
   blake-hash@2.0.0:
     dependencies:
       node-addon-api: 3.2.1
       node-gyp-build: 4.8.4
       readable-stream: 3.6.2
-    optional: true
 
   blake2b-wasm@2.4.0:
     dependencies:
@@ -3400,7 +3368,6 @@ snapshots:
       nanoassert: 2.0.0
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
   blake2b@2.1.4:
     dependencies:
@@ -3408,16 +3375,12 @@ snapshots:
       nanoassert: 2.0.0
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
-  bluebird@3.7.2:
-    optional: true
+  bluebird@3.7.2: {}
 
-  bn.js@4.12.2:
-    optional: true
+  bn.js@4.12.2: {}
 
-  bn.js@5.2.2:
-    optional: true
+  bn.js@5.2.2: {}
 
   brace-expansion@1.1.12:
     dependencies:
@@ -3432,8 +3395,7 @@ snapshots:
     dependencies:
       fill-range: 7.1.1
 
-  brorand@1.1.0:
-    optional: true
+  brorand@1.1.0: {}
 
   call-bind-apply-helpers@1.0.2:
     dependencies:
@@ -3461,13 +3423,11 @@ snapshots:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
 
-  check-types@11.2.3:
-    optional: true
+  check-types@11.2.3: {}
 
   circom_runtime@0.1.28:
     dependencies:
       ffjavascript: 0.3.1
-    optional: true
 
   circomlibjs@0.1.7:
     dependencies:
@@ -3479,7 +3439,6 @@ snapshots:
       - bufferutil
       - react-native-b4a
       - utf-8-validate
-    optional: true
 
   client-only@0.0.1: {}
 
@@ -3575,7 +3534,6 @@ snapshots:
   ejs@3.1.10:
     dependencies:
       jake: 10.9.4
-    optional: true
 
   elliptic@6.6.1:
     dependencies:
@@ -3586,7 +3544,6 @@ snapshots:
       inherits: 2.0.4
       minimalistic-assert: 1.0.1
       minimalistic-crypto-utils: 1.0.1
-    optional: true
 
   emoji-regex@9.2.2: {}
 
@@ -3705,7 +3662,6 @@ snapshots:
       optionator: 0.8.3
     optionalDependencies:
       source-map: 0.6.1
-    optional: true
 
   eslint-config-next@15.5.5(eslint@9.37.0)(typescript@5.9.3):
     dependencies:
@@ -3715,8 +3671,8 @@ snapshots:
       '@typescript-eslint/parser': 8.46.1(eslint@9.37.0)(typescript@5.9.3)
       eslint: 9.37.0
       eslint-import-resolver-node: 0.3.9
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint@9.37.0))(eslint@9.37.0)
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint@9.37.0))(eslint@9.37.0))(eslint@9.37.0)
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.37.0)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.37.0)
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.37.0)
       eslint-plugin-react: 7.37.5(eslint@9.37.0)
       eslint-plugin-react-hooks: 5.2.0(eslint@9.37.0)
@@ -3739,7 +3695,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint@9.37.0))(eslint@9.37.0):
+  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0)(eslint@9.37.0):
     dependencies:
       '@nolyfill/is-core-module': 1.0.39
       debug: 4.4.3
@@ -3750,22 +3706,22 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint@9.37.0))(eslint@9.37.0))(eslint@9.37.0)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.37.0)
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint@9.37.0))(eslint@9.37.0))(eslint@9.37.0):
+  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1)(eslint@9.37.0):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
       '@typescript-eslint/parser': 8.46.1(eslint@9.37.0)(typescript@5.9.3)
       eslint: 9.37.0
       eslint-import-resolver-node: 0.3.9
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint@9.37.0))(eslint@9.37.0)
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.37.0)
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint@9.37.0))(eslint@9.37.0))(eslint@9.37.0):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.37.0):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
@@ -3776,7 +3732,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 9.37.0
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint@9.37.0))(eslint@9.37.0))(eslint@9.37.0)
+      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.46.1(eslint@9.37.0)(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1)(eslint@9.37.0)
       hasown: 2.0.2
       is-core-module: 2.16.1
       is-glob: 4.0.3
@@ -3894,11 +3850,9 @@ snapshots:
       acorn-jsx: 5.3.2(acorn@8.15.0)
       eslint-visitor-keys: 4.2.1
 
-  esprima@1.2.2:
-    optional: true
+  esprima@1.2.2: {}
 
-  esprima@4.0.1:
-    optional: true
+  esprima@4.0.1: {}
 
   esquery@1.6.0:
     dependencies:
@@ -3908,8 +3862,7 @@ snapshots:
     dependencies:
       estraverse: 5.3.0
 
-  estraverse@4.3.0:
-    optional: true
+  estraverse@4.3.0: {}
 
   estraverse@5.3.0: {}
 
@@ -3950,7 +3903,6 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
-    optional: true
 
   ethers@6.15.0:
     dependencies:
@@ -3987,8 +3939,7 @@ snapshots:
 
   fast-levenshtein@2.0.6: {}
 
-  fastfile@0.0.20:
-    optional: true
+  fastfile@0.0.20: {}
 
   fastq@1.19.1:
     dependencies:
@@ -4003,21 +3954,18 @@ snapshots:
       wasmbuilder: 0.0.16
       wasmcurves: 0.2.2
       web-worker: 1.2.0
-    optional: true
 
   ffjavascript@0.3.0:
     dependencies:
       wasmbuilder: 0.0.16
       wasmcurves: 0.2.2
       web-worker: 1.2.0
-    optional: true
 
   ffjavascript@0.3.1:
     dependencies:
       wasmbuilder: 0.0.16
       wasmcurves: 0.2.2
       web-worker: 1.2.0
-    optional: true
 
   file-entry-cache@8.0.0:
     dependencies:
@@ -4026,7 +3974,6 @@ snapshots:
   filelist@1.0.4:
     dependencies:
       minimatch: 5.1.6
-    optional: true
 
   fill-range@7.1.1:
     dependencies:
@@ -4154,7 +4101,6 @@ snapshots:
     dependencies:
       inherits: 2.0.4
       minimalistic-assert: 1.0.1
-    optional: true
 
   hasown@2.0.2:
     dependencies:
@@ -4165,14 +4111,12 @@ snapshots:
       hash.js: 1.1.7
       minimalistic-assert: 1.0.1
       minimalistic-crypto-utils: 1.0.1
-    optional: true
 
   hoist-non-react-statics@3.3.2:
     dependencies:
       react-is: 16.13.1
 
-  hoopy@0.1.4:
-    optional: true
+  hoopy@0.1.4: {}
 
   ignore@5.3.2: {}
 
@@ -4185,8 +4129,7 @@ snapshots:
 
   imurmurhash@0.1.4: {}
 
-  inherits@2.0.4:
-    optional: true
+  inherits@2.0.4: {}
 
   internal-slot@1.1.0:
     dependencies:
@@ -4326,10 +4269,8 @@ snapshots:
       async: 3.2.6
       filelist: 1.0.4
       picocolors: 1.1.1
-    optional: true
 
-  js-sha3@0.8.0:
-    optional: true
+  js-sha3@0.8.0: {}
 
   js-tokens@4.0.0: {}
 
@@ -4356,7 +4297,6 @@ snapshots:
       esprima: 1.2.2
       static-eval: 2.0.2
       underscore: 1.12.1
-    optional: true
 
   jsx-ast-utils@3.3.5:
     dependencies:
@@ -4379,7 +4319,6 @@ snapshots:
     dependencies:
       prelude-ls: 1.1.2
       type-check: 0.3.2
-    optional: true
 
   levn@0.4.1:
     dependencies:
@@ -4396,8 +4335,7 @@ snapshots:
 
   lodash.mergewith@4.6.2: {}
 
-  logplease@1.2.15:
-    optional: true
+  logplease@1.2.15: {}
 
   loose-envify@1.4.0:
     dependencies:
@@ -4412,11 +4350,9 @@ snapshots:
       braces: 3.0.3
       picomatch: 2.3.1
 
-  minimalistic-assert@1.0.1:
-    optional: true
+  minimalistic-assert@1.0.1: {}
 
-  minimalistic-crypto-utils@1.0.1:
-    optional: true
+  minimalistic-crypto-utils@1.0.1: {}
 
   minimatch@3.1.2:
     dependencies:
@@ -4425,7 +4361,6 @@ snapshots:
   minimatch@5.1.6:
     dependencies:
       brace-expansion: 2.0.2
-    optional: true
 
   minimatch@9.0.5:
     dependencies:
@@ -4441,8 +4376,7 @@ snapshots:
 
   ms@2.1.3: {}
 
-  nanoassert@2.0.0:
-    optional: true
+  nanoassert@2.0.0: {}
 
   nanoid@3.3.11: {}
 
@@ -4473,11 +4407,9 @@ snapshots:
       - '@babel/core'
       - babel-plugin-macros
 
-  node-addon-api@3.2.1:
-    optional: true
+  node-addon-api@3.2.1: {}
 
-  node-gyp-build@4.8.4:
-    optional: true
+  node-gyp-build@4.8.4: {}
 
   object-assign@4.1.1: {}
 
@@ -4529,7 +4461,6 @@ snapshots:
       prelude-ls: 1.1.2
       type-check: 0.3.2
       word-wrap: 1.2.5
-    optional: true
 
   optionator@0.9.4:
     dependencies:
@@ -4587,8 +4518,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  prelude-ls@1.1.2:
-    optional: true
+  prelude-ls@1.1.2: {}
 
   prelude-ls@1.2.1: {}
 
@@ -4610,7 +4540,6 @@ snapshots:
       '@iden3/binfileutils': 0.0.12
       fastfile: 0.0.20
       ffjavascript: 0.3.0
-    optional: true
 
   react-clientside-effect@1.2.8(react@19.2.0):
     dependencies:
@@ -4676,7 +4605,6 @@ snapshots:
       inherits: 2.0.4
       string_decoder: 1.3.0
       util-deprecate: 1.0.2
-    optional: true
 
   reflect.getprototypeof@1.0.10:
     dependencies:
@@ -4728,8 +4656,7 @@ snapshots:
       has-symbols: 1.1.0
       isarray: 2.0.5
 
-  safe-buffer@5.2.1:
-    optional: true
+  safe-buffer@5.2.1: {}
 
   safe-push-apply@1.0.0:
     dependencies:
@@ -4744,8 +4671,7 @@ snapshots:
 
   scheduler@0.27.0: {}
 
-  scrypt-js@3.0.1:
-    optional: true
+  scrypt-js@3.0.1: {}
 
   semver@6.3.1: {}
 
@@ -4851,7 +4777,6 @@ snapshots:
       r1csfile: 0.0.48
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
   source-map-js@1.2.1: {}
 
@@ -4865,7 +4790,6 @@ snapshots:
   static-eval@2.0.2:
     dependencies:
       escodegen: 1.14.3
-    optional: true
 
   stop-iteration-iterator@1.1.0:
     dependencies:
@@ -4925,7 +4849,6 @@ snapshots:
   string_decoder@1.3.0:
     dependencies:
       safe-buffer: 5.2.1
-    optional: true
 
   strip-bom@3.0.0: {}
 
@@ -4955,8 +4878,7 @@ snapshots:
 
   toggle-selection@1.0.6: {}
 
-  tryer@1.0.1:
-    optional: true
+  tryer@1.0.1: {}
 
   ts-api-utils@2.1.0(typescript@5.9.3):
     dependencies:
@@ -4978,7 +4900,6 @@ snapshots:
   type-check@0.3.2:
     dependencies:
       prelude-ls: 1.1.2
-    optional: true
 
   type-check@0.4.0:
     dependencies:
@@ -5026,8 +4947,7 @@ snapshots:
       has-symbols: 1.1.0
       which-boxed-primitive: 1.1.1
 
-  underscore@1.12.1:
-    optional: true
+  underscore@1.12.1: {}
 
   undici-types@6.19.8: {}
 
@@ -5076,14 +4996,12 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.2
 
-  util-deprecate@1.0.2:
-    optional: true
+  util-deprecate@1.0.2: {}
 
-  w3pk@0.4.1(ethers@6.15.0):
+  w3pk@0.5.1(ethers@6.15.0):
     dependencies:
       '@simplewebauthn/browser': 13.2.2
       ethers: 6.15.0
-      w3pk: link:../Library/pnpm/store/5/node_modules/w3pk
     optionalDependencies:
       circomlibjs: 0.1.7
       snarkjs: 0.7.5
@@ -5092,16 +5010,13 @@ snapshots:
       - react-native-b4a
       - utf-8-validate
 
-  wasmbuilder@0.0.16:
-    optional: true
+  wasmbuilder@0.0.16: {}
 
   wasmcurves@0.2.2:
     dependencies:
       wasmbuilder: 0.0.16
-    optional: true
 
-  web-worker@1.2.0:
-    optional: true
+  web-worker@1.2.0: {}
 
   which-boxed-primitive@1.1.1:
     dependencies:
@@ -5152,8 +5067,7 @@ snapshots:
 
   ws@8.17.1: {}
 
-  ws@8.18.0:
-    optional: true
+  ws@8.18.0: {}
 
   yaml@1.10.2: {}
 
