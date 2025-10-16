@@ -2,6 +2,7 @@ import { ethers } from 'ethers'
 
 /**
  * Derives an encryption key from WebAuthn credential data
+ * Used for encrypting sensitive data client-side
  */
 export async function deriveEncryptionKey(
   credentialId: string,
@@ -97,6 +98,7 @@ export async function decryptData(encryptedData: string, key: CryptoKey): Promis
 /**
  * Generates a new BIP39 wallet with HD derivation
  * Uses BIP44 path: m/44'/60'/0'/0/0 for Ethereum
+ * Note: w3pk handles most wallet functionality, but this is kept for compatibility
  */
 export function generateBIP39Wallet(): {
   address: string
@@ -129,6 +131,7 @@ export function generateBIP39Wallet(): {
 /**
  * Creates wallet from mnemonic phrase
  * Uses BIP44 path: m/44'/60'/0'/0/0
+ * Note: w3pk handles most wallet functionality, but this is kept for compatibility
  */
 export function createWalletFromMnemonic(mnemonic: string): ethers.HDNodeWallet {
   try {

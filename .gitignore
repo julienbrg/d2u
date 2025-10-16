@@ -39,3 +39,6 @@ next-env.d.ts
 # Misc
 NOTES.md
 /zhankai
+.context
+update-sbt-root.js
+utils/sbtHolders.ts
