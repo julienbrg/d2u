@@ -183,6 +183,55 @@ export default function VotingPage() {
     []
   )
 
+  const fetchSingleProposal = useCallback(
+    async (proposalId: number, useFallback: boolean = false): Promise<void> => {
+      if (!isValidAddress(STEALTH_GOV_ADDRESS)) {
+        console.warn('Contract address not configured')
+        return
+      }
+
+      try {
+        const provider = createProvider(useFallback)
+        const contract = new ethers.Contract(
+          ethers.getAddress(STEALTH_GOV_ADDRESS),
+          STEALTH_GOV_ABI,
+          provider
+        )
+
+        console.log(`📋 Fetching proposal ${proposalId}...`)
+        const proposalData = await fetchProposalData(contract, proposalId)
+
+        if (proposalData) {
+          setProposals(prev => {
+            const updatedProposals = [...prev]
+            const index = updatedProposals.findIndex(p => p.id === proposalId)
+            
+            if (index !== -1) {
+              updatedProposals[index] = proposalData
+            } else {
+              updatedProposals.push(proposalData)
+              updatedProposals.sort((a, b) => b.id - a.id)
+            }
+            
+            console.log(`🏛️ Updated proposal ${proposalId}`)
+            return updatedProposals
+          })
+        }
+      } catch (error: any) {
+        console.error(`Error fetching proposal ${proposalId}:`, error)
+
+        if (
+          !useFallback &&
+          (error.message?.includes('429') || error.message?.includes('Too Many Requests'))
+        ) {
+          console.log('🔄 Switching to fallback RPC...')
+          return fetchSingleProposal(proposalId, true)
+        }
+      }
+    },
+    [fetchProposalData]
+  )
+
   const fetchProposals = useCallback(
     async (useFallback: boolean = false) => {
       if (!isValidAddress(STEALTH_GOV_ADDRESS)) {
@@ -854,7 +903,7 @@ export default function VotingPage() {
         isClosable: true,
       })
 
-      await fetchProposals()
+      await fetchSingleProposal(proposalId)
 
       const voteStorageKey = `vote_${user.ethereumAddress}_${proposalId}`
       const voteInfo = {
@@ -896,9 +945,9 @@ export default function VotingPage() {
       })
 
       try {
-        await fetchProposals()
+        await fetchSingleProposal(proposalId)
       } catch (refreshError) {
-        console.error('Failed to refresh proposals:', refreshError)
+        console.error('Failed to refresh proposal:', refreshError)
       }
     } finally {
       setVotingProposalId(null)
