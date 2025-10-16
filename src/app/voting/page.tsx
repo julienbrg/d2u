@@ -113,7 +113,8 @@ export default function VotingPage() {
   // State
   const [proposals, setProposals] = useState<ProposalData[]>([])
   const [isLoadingProposals, setIsLoadingProposals] = useState(false)
-  const [isVoting, setIsVoting] = useState(false)
+  const [votingProposalId, setVotingProposalId] = useState<number | null>(null)
+  const [votingStep, setVotingStep] = useState<string>('')
   const [isCreating, setIsCreating] = useState(false)
   const [newProposalDescription, setNewProposalDescription] = useState('')
   const [hasSBT, setHasSBT] = useState(false)
@@ -309,7 +310,7 @@ export default function VotingPage() {
         setSbtTokenId(Number(tokenId))
       }
     } catch (error) {
-      console.error('Error checking SBT status:', error)
+      console.error('Error checking Human Passport SBT status:', error)
     }
   }, [user?.ethereumAddress])
 
@@ -380,7 +381,7 @@ export default function VotingPage() {
   const handleMintSBT = async () => {
     if (!isValidAddress(SBT_CONTRACT_ADDRESS)) {
       toast({
-        title: 'SBT Contract Not Configured',
+        title: 'Human Passport SBT Contract Not Configured',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -399,7 +400,7 @@ export default function VotingPage() {
       const balance = await sbtContract.balanceOf(user.ethereumAddress)
       if (Number(balance) > 0) {
         toast({
-          title: 'Already Have SBT',
+          title: 'Already Have Human Passport SBT',
           status: 'info',
           duration: 5000,
           isClosable: true,
@@ -487,7 +488,7 @@ export default function VotingPage() {
       const sbtContractWithSigner = new ethers.Contract(SBT_CONTRACT_ADDRESS, SBT_ABI, wallet)
 
       toast({
-        title: 'Minting SBT...',
+        title: 'Minting Human Passport SBT...',
         status: 'info',
         duration: 5000,
         isClosable: true,
@@ -506,7 +507,7 @@ export default function VotingPage() {
       await tx.wait()
 
       toast({
-        title: 'SBT Minted! 🎉',
+        title: 'Human Passport SBT Minted! 🎉',
         status: 'success',
         duration: 5000,
         isClosable: true,
@@ -514,15 +515,15 @@ export default function VotingPage() {
 
       await checkSBTStatus()
     } catch (error: any) {
-      console.error('Error minting SBT:', error)
+      console.error('Error minting Human Passport SBT:', error)
 
-      let errorMessage = error.message || 'Failed to mint SBT'
+      let errorMessage = error.message || 'Failed to mint Human Passport SBT'
       if (error.message?.includes('insufficient funds')) {
         errorMessage = 'Insufficient ETH balance'
       }
 
       toast({
-        title: 'SBT Minting Failed',
+        title: 'Human Passport SBT Minting Failed',
         description: errorMessage,
         status: 'error',
         duration: 7000,
@@ -623,16 +624,9 @@ export default function VotingPage() {
     }
 
     try {
-      setIsVoting(true)
+      setVotingProposalId(proposalId)
+      setVotingStep('Authenticating with WebAuthn...')
       console.log('🗳️ Starting ZK vote process...')
-
-      toast({
-        title: 'Preparing ZK Proof...',
-        description: 'Fetching SBT holders and building merkle tree',
-        status: 'info',
-        duration: 5000,
-        isClosable: true,
-      })
 
       const { createWeb3Passkey, generateNFTOwnershipProofInputs } = await import('w3pk')
       const { fetchSBTHoldersWithCache } = await import('@/utils/sbtHolders')
@@ -659,6 +653,7 @@ export default function VotingPage() {
       }
 
       console.log('🔐 Deriving wallet...')
+      setVotingStep('Deriving cryptographic wallet...')
       const walletInfo = await w3pk.deriveWallet(0)
       if (!walletInfo?.privateKey) throw new Error('Failed to derive wallet')
 
@@ -671,14 +666,15 @@ export default function VotingPage() {
         provider
       )
 
-      console.log('📋 Fetching SBT holders...')
+      console.log('📋 Fetching Human Passport SBT holders...')
+      setVotingStep('Fetching Human Passport SBT holders and building Merkle tree...')
       let holderAddresses: string[]
 
       try {
         holderAddresses = await fetchSBTHoldersWithCache(SBT_CONTRACT_ADDRESS, provider)
-        console.log(`✅ Found ${holderAddresses.length} SBT holders`)
+        console.log(`✅ Found ${holderAddresses.length} Human Passport SBT holders`)
       } catch (error) {
-        console.error('Failed to fetch SBT holders:', error)
+        console.error('Failed to fetch Human Passport SBT holders:', error)
         holderAddresses = [user.ethereumAddress]
         console.warn('⚠️ Using fallback: single holder mode')
       }
@@ -696,20 +692,14 @@ export default function VotingPage() {
         holderAddresses.push(ethers.ZeroAddress)
       }
 
-      console.log('📋 Final holder list for ZK proof:', holderAddresses)
+      console.log('📋 Final Human Passport SBT holder list for ZK proof:', holderAddresses)
 
       console.log('🔬 Generating ZK proof inputs...')
-      toast({
-        title: 'Building Merkle Tree...',
-        description: 'Creating cryptographic proof of SBT ownership',
-        status: 'info',
-        duration: 5000,
-        isClosable: true,
-      })
+      setVotingStep('Generating zero-knowledge proof...')
 
       // Get the merkle root from the contract instead of calculating our own
       const contractRoot = await contract.getSbtHoldersRoot()
-      console.log('📋 Contract SBT holders root:', contractRoot)
+      console.log('📋 Contract Human Passport SBT holders root:', contractRoot)
 
       const { nftProofInput } = await generateNFTOwnershipProofInputs(
         user.ethereumAddress,
@@ -726,13 +716,6 @@ export default function VotingPage() {
       console.log('  - Merkle root (from contract):', nftProofInput.holdersRoot)
 
       console.log('⏳ Generating ZK proof (this may take 5-10 seconds)...')
-      toast({
-        title: 'Generating ZK Proof...',
-        description: 'Computing zero-knowledge proof (may take 5-10 seconds)',
-        status: 'info',
-        duration: 10000,
-        isClosable: true,
-      })
 
       // Check if ZK module is available
       if (!w3pk.zk) {
@@ -742,19 +725,12 @@ export default function VotingPage() {
       // Skip ZK proof generation for now and use mock proof for testing
       console.log('🔧 Using mock ZK proof for testing (bypassing w3pk ZK generation)')
 
-      toast({
-        title: 'Creating Mock Proof...',
-        description: 'Using simplified proof for testing',
-        status: 'info',
-        duration: 5000,
-        isClosable: true,
-      })
-
-      // Check if user has SBT
+      // Check if user has Human Passport SBT
+      setVotingStep('Verifying Human Passport SBT ownership...')
       const sbtContract = new ethers.Contract(SBT_CONTRACT_ADDRESS, SBT_ABI, provider)
       const sbtBalance = await sbtContract.balanceOf(user.ethereumAddress)
       if (sbtBalance === BigInt(0)) {
-        throw new Error('You must own an SBT to vote')
+        throw new Error('You must own a Human Passport SBT to vote')
       }
 
       // Create mock ZK proof using contract's merkle root
@@ -771,14 +747,13 @@ export default function VotingPage() {
 
       // Generate a deterministic nullifier for this user+proposal (same nullifier for vote changes)
       const voteNullifier = ethers.keccak256(
-        ethers.solidityPacked(
-          ['address', 'uint256'],
-          [user.ethereumAddress, proposalId]
-        )
+        ethers.solidityPacked(['address', 'uint256'], [user.ethereumAddress, proposalId])
       )
 
       // Calculate hashed contract address as expected by the contract
-      const hashedContractAddress = ethers.keccak256(ethers.solidityPacked(['address'], [SBT_CONTRACT_ADDRESS]))
+      const hashedContractAddress = ethers.keccak256(
+        ethers.solidityPacked(['address'], [SBT_CONTRACT_ADDRESS])
+      )
 
       const publicSignals = [
         BigInt(contractRoot.toString()), // holdersRoot
@@ -791,7 +766,10 @@ export default function VotingPage() {
       console.log('Contract root:', contractRoot.toString())
       console.log('Hashed contract address:', hashedContractAddress)
       console.log('Vote nullifier:', voteNullifier)
-      console.log('Public signals:', publicSignals.map(s => s.toString()))
+      console.log(
+        'Public signals:',
+        publicSignals.map(s => s.toString())
+      )
 
       // Nullifier is now generated internally by the contract
       const ephemeralKey = ethers.hexlify(ethers.randomBytes(32))
@@ -810,13 +788,7 @@ export default function VotingPage() {
 
       if (stealthBalance < minBalance) {
         console.log('💰 Funding stealth address...')
-        toast({
-          title: 'Funding Stealth Address...',
-          description: 'Requesting ETH from faucet',
-          status: 'info',
-          duration: 5000,
-          isClosable: true,
-        })
+        setVotingStep('Funding anonymous voting address...')
 
         const faucetResponse = await fetch('/api/faucet', {
           method: 'POST',
@@ -837,18 +809,11 @@ export default function VotingPage() {
         stealthWallet
       )
 
-      toast({
-        title: 'Casting Vote...',
-        description: 'Submitting transaction to blockchain',
-        status: 'info',
-        duration: 7000,
-        isClosable: true,
-      })
-
       let tx
       // Check if this nullifier has been used before to determine vote vs change
+      setVotingStep('Submitting anonymous vote to blockchain...')
       const isNullifierUsed = await contract.isNullifierUsed(proposalId, voteNullifier)
-      
+
       if (isNullifierUsed) {
         console.log('📝 Nullifier already used, changing existing vote...')
         tx = await contractWithSigner.changeStealthVote(
@@ -936,7 +901,8 @@ export default function VotingPage() {
         console.error('Failed to refresh proposals:', refreshError)
       }
     } finally {
-      setIsVoting(false)
+      setVotingProposalId(null)
+      setVotingStep('')
     }
   }
 
@@ -970,11 +936,11 @@ export default function VotingPage() {
           <Box flex="1">
             <AlertTitle>Privacy-Preserving ZK Voting</AlertTitle>
             <AlertDescription fontSize="sm">
-              Your votes use zero-knowledge proofs to prove SBT ownership without revealing your
-              identity. Change your vote anytime during the voting period.
+              Your votes use zero-knowledge proofs to prove Human Passport SBT ownership without
+              revealing your identity. Change your vote anytime during the voting period.
               {isAuthenticated && (
                 <Text mt={2} fontWeight="semibold" color="purple.300">
-                  💡 Anyone with an SBT can create proposals and vote!
+                  💡 Anyone with a Human Passport SBT can create proposals and vote!
                 </Text>
               )}
             </AlertDescription>
@@ -985,13 +951,16 @@ export default function VotingPage() {
           <Alert status="warning" borderRadius="md">
             <AlertIcon />
             <Box flex="1">
-              <AlertTitle>SBT Required</AlertTitle>
+              <AlertTitle>Human Passport SBT Required</AlertTitle>
               <AlertDescription fontSize="sm">
-                Mint a Soul Bound Token to participate in governance
+                Mint a Human Passport SBT to participate in governance
               </AlertDescription>
             </Box>
             <Button colorScheme="orange" size="sm" onClick={handleMintSBT} isLoading={isMintingSBT}>
-              Mint SBT
+              Mint Human Passport SBT (mock)
+            </Button>
+            <Button ml={4} colorScheme="blue" size="sm" disabled>
+              Connect with your Human Wallet
             </Button>
           </Alert>
         )}
@@ -1001,7 +970,8 @@ export default function VotingPage() {
             <AlertIcon />
             <Box flex="1">
               <AlertDescription fontSize="sm">
-                ✅ You have an SBT (Token ID: {sbtTokenId}) - You can create proposals and vote!
+                ✅ You have a Human Passport SBT (Token ID: {sbtTokenId}) - You can create proposals
+                and vote!
                 <Text fontSize="xs" color="gray.300" mt={1}>
                   Wallet Balance: {parseFloat(ethBalance).toFixed(4)} ETH
                   {isFundingWallet && ' (Funding...)'}
@@ -1152,40 +1122,59 @@ export default function VotingPage() {
                           />
                         </Box>
 
-                        {proposal.isActive && isAuthenticated && hasSBT && (
-                          <SimpleGrid columns={3} spacing={2}>
-                            <Button
-                              size="sm"
-                              colorScheme="green"
-                              onClick={() => handleVote(proposal.id, 1)}
-                              isLoading={isVoting}
+                        {proposal.isActive &&
+                          isAuthenticated &&
+                          hasSBT &&
+                          (votingProposalId === proposal.id ? (
+                            <Box
+                              p={4}
+                              bg="purple.900"
+                              borderRadius="md"
+                              border="1px solid"
+                              borderColor="purple.500"
+                              textAlign="center"
                             >
-                              For
-                            </Button>
-                            <Button
-                              size="sm"
-                              colorScheme="red"
-                              onClick={() => handleVote(proposal.id, 0)}
-                              isLoading={isVoting}
-                            >
-                              Against
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleVote(proposal.id, 2)}
-                              isLoading={isVoting}
-                            >
-                              Abstain
-                            </Button>
-                          </SimpleGrid>
-                        )}
+                              <Flex align="center" justify="center" mb={2}>
+                                <Spinner size="sm" color="purple.400" mr={3} />
+                                <Text fontSize="sm" fontWeight="semibold" color="purple.200">
+                                  Casting Vote...
+                                </Text>
+                              </Flex>
+                              <Text fontSize="xs" color="gray.300">
+                                {votingStep}
+                              </Text>
+                            </Box>
+                          ) : (
+                            <SimpleGrid columns={3} spacing={2}>
+                              <Button
+                                size="sm"
+                                colorScheme="green"
+                                onClick={() => handleVote(proposal.id, 1)}
+                              >
+                                For
+                              </Button>
+                              <Button
+                                size="sm"
+                                colorScheme="red"
+                                onClick={() => handleVote(proposal.id, 0)}
+                              >
+                                Against
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleVote(proposal.id, 2)}
+                              >
+                                Abstain
+                              </Button>
+                            </SimpleGrid>
+                          ))}
 
                         {proposal.isActive && isAuthenticated && !hasSBT && (
                           <Alert status="warning" size="sm">
                             <AlertIcon />
                             <Box flex="1">
-                              <Text fontSize="xs">Mint an SBT to vote</Text>
+                              <Text fontSize="xs">Mint a Human Passport SBT to vote</Text>
                             </Box>
                           </Alert>
                         )}
@@ -1211,15 +1200,16 @@ export default function VotingPage() {
           </Heading>
           <VStack spacing={3} align="stretch">
             <Text fontSize="sm" color="gray.300">
-              🔬 <strong>Zero-Knowledge Proofs:</strong> Prove SBT ownership without revealing your
-              token ID or identity
+              🔬 <strong>Zero-Knowledge Proofs:</strong> Prove Human Passport SBT ownership without
+              revealing your token ID or identity
             </Text>
             <Text fontSize="sm" color="gray.300">
               🎭 <strong>Anonymous:</strong> Votes cast from stealth addresses that cannot be linked
               to you
             </Text>
             <Text fontSize="sm" color="gray.300">
-              🪙 <strong>SBT Required:</strong> Mint a Soul Bound Token to participate in governance
+              🪙 <strong>Human Passport SBT Required:</strong> Mint a Human Passport SBT to
+              participate in governance
             </Text>
             <Text fontSize="sm" color="gray.300">
               🔄 <strong>Change Your Vote:</strong> Update your vote anytime during the voting
@@ -1247,14 +1237,14 @@ export default function VotingPage() {
               </Text>
             </Flex>
             <Flex justify="space-between">
-              <Text color="gray.400">SBT Contract:</Text>
+              <Text color="gray.400">Human Passport SBT Contract (mock):</Text>
               <Text color="purple.300">
                 {SBT_CONTRACT_ADDRESS.slice(0, 6)}...{SBT_CONTRACT_ADDRESS.slice(-4)}
               </Text>
             </Flex>
             {sbtHoldersRoot && (
               <Flex justify="space-between">
-                <Text color="gray.400">SBT Holders Root:</Text>
+                <Text color="gray.400">Human Passport SBT Holders Root:</Text>
                 <Text color="purple.300">
                   {sbtHoldersRoot.slice(0, 10)}...{sbtHoldersRoot.slice(-8)}
                 </Text>
@@ -1278,7 +1268,7 @@ export default function VotingPage() {
               <Alert status="info" size="sm">
                 <AlertIcon />
                 <Text fontSize="xs">
-                  Anyone with an SBT can create proposals! Active for 7 days.
+                  Anyone with a Human Passport SBT can create proposals! Active for 7 days.
                 </Text>
               </Alert>
               <FormControl>
